@@ -1,0 +1,4 @@
+interface:
+  display_name: "TrainTrace Coach"
+  short_description: "依据真实训练记录动态排课、复盘并持续调整个人训练计划"
+  default_prompt: "使用 $traintrace-coach 引导我建立训练档案，并根据真实记录制定下一次训练。"
