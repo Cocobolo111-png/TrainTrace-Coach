@@ -1,4 +1,4 @@
-# TrainTrace Coach
+# TrainTrace
 
 > 不是再给你一张练完就忘的通用课表，而是让 AI 根据你的真实训练记录，持续决定下一次怎么练。
 
@@ -6,9 +6,85 @@
 [![Codex](https://img.shields.io/badge/Codex-Compatible-10A37F)](https://openai.com/codex/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](./LICENSE)
 
-一个面向力量训练的长期 AI 私人教练 Skill。它会记住你实际做过的重量、次数、组数和主观感受，再结合当天状态、训练目标、可用器械与时间，动态排课、复盘并调整后续训练。
+TrainTrace 是一个随着真实训练历史持续调整建议的私人训练助手。本仓库同时提供无需账号的移动端 Web App，以及可独立安装的 AI 私人教练 Skill：网页负责可靠地逐组记录和本地基础建议，Skill 负责对话式排课和深度复盘。
 
 **训练一次，记录一次；下一次建议就更像是为你制定的。**
+
+
+## 移动端 Web App · V1
+
+**走进健身房，打开 TrainTrace，接着上一次练。** 网页以记录为主，Skill 继续作为独立 AI 教练使用。网页不会调用 Codex Skill，也不包含 API Key；候选排课和基础复盘均清楚标注为本地规则建议。
+
+部署地址：[打开 TrainTrace](https://cocobolo111-png.github.io/TrainTrace-Coach/)（由本仓库 Actions 构建并发布）。
+
+### 本地运行
+
+需要 Node.js 22.12+ 和 pnpm 10（也可以用 npm 安装并运行相同 scripts）。在本仓库根目录执行：
+
+```bash
+corepack enable
+pnpm install
+pnpm dev
+```
+
+电脑打开终端显示的 `http://localhost:5173`；手机和电脑在同一 Wi-Fi 时，打开终端 `Network` 地址（例如 `http://192.168.x.x:5173`）。这一步用于联调。离线 PWA / 安装需 HTTPS，普通局域网 HTTP 不支持 Service Worker。
+
+```bash
+pnpm test               # 记录、规则、迁移与 IndexedDB 事务测试
+pnpm build              # TypeScript 检查 + 生产构建 + PWA 预缓存
+pnpm preview            # http://localhost:4173 验证生产离线版本
+pnpm exec playwright install chromium
+pnpm test:e2e           # 手机视口完整训练旅程，启动生产预览
+```
+
+静态部署时将 `dist/` 放到 HTTPS 静态托管目录即可。资源使用相对 base，可部署到域名根目录或 `/TrainTrace-Coach/` 等子目录。无后端、数据库服务或账号要求。
+
+### 在手机上使用
+
+1. 首次确认目标、经验、每周次数、常用器械和偏好；有本地档案时直接进入首页。
+2. 选择胸 / 背 / 腿 / 肩 / 全身，确认时长和动作。历史不足时重量留空，请热身后现场选重；自重记为 0，不估算体重。
+3. 开始后逐组点「完成」。预填值仅为参考，未点完成不算训练；数据库提交成功后才确认。完成自动休息，可跳过或延长。
+4. 可以增删待做组、修改负荷 / 次数 / 休息、替换尚未开始的动作、跳过动作；主要动作末组可选感受或准确 RPE，两者独立保存。
+5. 中途退出后首页优先显示继续入口。结束只统计已完成工作组；放弃不会主导历史与计划。导出仍保留放弃记录，避免误删事实。
+6. 历史页查看日期详情、7 / 30 天训练情况、同动作重量和计重工作量趋势、可验证的已记录重量最佳。训练时长为开始至结束的经过时间（含休息与后台）；Markdown 缺少精确时间时显示「—」。
+7. Safari：分享 → 添加到主屏幕；Android：浏览器菜单 → 安装应用 / 添加到主屏幕。HTTPS 首次完整加载后可离线使用；首次完全离线无法安装。更新版本时先完成当前记录并关闭所有旧标签页，再重新打开。
+
+核心操作不依赖电脑。训练组、未完成进度与休息结束时间保存在 IndexedDB，后台恢复依据时间戳重算计时。JSON 导入导出可直接在手机浏览器完成。
+
+### 数据、备份与旧 Skill 迁移
+
+- 网页唯一事实源：**当前浏览器、当前 origin 的 IndexedDB**。无云同步，也不会上传训练数据。`localhost`、`127.0.0.1` 和正式域名是不同档案。
+- 在「我的 → 导出完整备份」下载带 schemaVersion 的 JSON，含偏好、历史与未完成训练。导入先预览后确认，按稳定 ID 合并去重；同 ID 内容冲突或同时存在两节未完成训练时拒绝覆盖。
+- 网页不能扫描你电脑中的 Skill 工作区。迁移 `fitness-coach-data/training_log.md` 时，在「导入数据」手动选文件。只读取 `## 日期｜主题` 下的 `### 实际完成`；不会把计划、教练观察、待确认或模板注释算为事实。支持模板的名称 / 工作组字段和明确的逐动作简表，示例在导入界面。
+- 缺失单位、未知动作版本、哑铃计重口径不清、自由叙述无法确认的记录会提示并跳过，确认预览后才合并。附加感受等暂不从自由 Markdown 自动推断。原文件请归档；导入后网页中新增事实只维护在数据库中，不双向修改 Markdown。`profile.md` 与 `coaching_preferences.md` 的自由文字暂通过极简表单确认；摘要不作为训练事实。
+- Skill 继续独立维护其工作区 Markdown。如两种入口并行使用，不自动声称数据相同；可把网页 JSON 备份提供给助手作只读分析，再由用户决定采纳建议。V1 没有双向同步。
+- 浏览器清理站点数据、隐私模式、卸载或设备损坏都可能影响长期保存。首次建档会申请持久存储（浏览器可拒绝），请定期备份。导入有结构校验，写入失败会明确提示，不把未保存的组显示为成功。
+- 私人数据目录、备份、环境变量和测试产物已加入 `.gitignore`。不要把私人日志放到公开源码中。
+
+### V1 实际验证
+
+- TypeScript 检查、生产构建与 PWA 预缓存生成通过；18 项单元测试通过。
+- 两条 Chromium 手机浏览器自动化旅程通过：首次建档、Markdown 历史导入、胸部训练、三组卧推（第二组改次数）、休息计时、关闭页面重开、真实总结、历史趋势、下一节引用、JSON 导出 / 新浏览器导入及重复去重、断网重载后继续记组、放弃训练和计划组增删。
+- 断网场景先验证未缓存网络请求确实失败，再重载并写入实际组，重载后该组仍只出现一次。
+- 320 / 390 / 1280 px 无页面横向溢出；另实测 375 / 390 px 的小数重量与两位次数显示，修复输入裁切并加入宽度回归检查。
+- 原 `traintrace-coach/` 内容未修改；测试采用合成数据，产品默认无示例训练事实。
+- 尚待真实手机确认：iOS / Android 的安装体验、软键盘操作、系统长时间后台与浏览器存储回收。自动化浏览器通过不等于真机长期使用已验证。
+
+### 本地规则与能力边界
+
+规则参考原 Skill 的真实记录优先、单变量渐进、动作模式、复训和事实分离原则。根据近期已结束训练提出候选主题，结合目标、经验、器械、偏好和时长选择精简动作；逐组引用最近**同版本动作**的完成数据，不引用计划或个人最高负荷。停练后提供复训开关，减少组数、清空负重，现场重新确认。
+
+这是可解释的基础候选器，不等同于 Skill 的临场推理：不会诊断伤病、判断动作质量、自动评估复杂限制、提供个体化康复或自动加重。偏好 / 限制会展示供用户确认，不假装已被完整理解。不同器械型号、动作版本与计重方式不能直接比较；请只在相同口径下引用记录。无历史时明确建立基线，工作量差异只描述事实，不包装成长趋势。
+
+训练量为显示重量 × 实际次数之和；哑铃使用单只口径，不合并为双手吨位，自重不估算 kg 工作量。计划组全部是工作组，热身不计入，V1 不按 RPE 阈值猜测“有效性”。
+
+代码中的 `src/coach.ts` 是本地候选计划 / 比较接口，`src/model.ts` 定义数据契约；后续可通过服务端替换建议生成器，继续以数据库实际组为唯一事实来源，无需提前建立 Agent 服务。
+
+---
+
+## 原有 AI 教练 Skill
+
+以下为独立 Skill 的安装与使用方式，`traintrace-coach/` 原有规则保持独立。
 
 ## 它解决什么问题
 
@@ -63,9 +139,9 @@ TrainTrace Coach 会在你的工作区维护一份本地训练档案，形成持
 克隆仓库并复制完整的 Skill 文件夹：
 
 ```bash
-git clone https://github.com/Cocobolo111-png/Personal-Fitness-Coach.git
+git clone https://github.com/Cocobolo111-png/TrainTrace-Coach.git
 mkdir -p "${CODEX_HOME:-$HOME/.codex}/skills"
-cp -R ./Personal-Fitness-Coach/traintrace-coach "${CODEX_HOME:-$HOME/.codex}/skills/traintrace-coach"
+cp -R ./TrainTrace-Coach/traintrace-coach "${CODEX_HOME:-$HOME/.codex}/skills/traintrace-coach"
 ```
 
 重新启动 Codex，然后在准备保存训练记录的项目中发送：
@@ -153,12 +229,12 @@ fitness-coach-data/
 └── training_log.md          # 真实训练事实，持续追加
 ```
 
-这些文件属于使用者，不属于 Skill。若当前项目会上传 GitHub，建议把 `fitness-coach-data/` 加入 `.gitignore`，除非你明确希望公开个人训练数据。
+这些文件属于使用者，不属于 Skill。本仓库已把 `fitness-coach-data/` 加入 `.gitignore`，避免公开个人训练数据。
 
 ## 项目结构
 
 ```text
-Personal-Fitness-Coach/
+TrainTrace-Coach/
 ├── README.md
 ├── LICENSE
 └── traintrace-coach/
