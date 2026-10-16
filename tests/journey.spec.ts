@@ -217,6 +217,13 @@ test("mobile gym journey: setup, history prefill, recovery, review, next workout
 test("first record has no invented load, mobile controls can add/remove/skip and discard", async ({
   page,
 }) => {
+  // LAN HTTP does not expose the HTTPS-only randomUUID API.
+  await page.addInitScript(() =>
+    Object.defineProperty(crypto, "randomUUID", {
+      value: undefined,
+      configurable: true,
+    }),
+  );
   await page.goto("/");
   await page.getByRole("button", { name: "准备好了，开始训练" }).click();
   await saved(page);
