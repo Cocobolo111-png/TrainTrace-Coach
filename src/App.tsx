@@ -1,5 +1,6 @@
 import {
   useEffect,
+  useLayoutEffect,
   useRef,
   useState,
   type FormEvent,
@@ -149,6 +150,10 @@ export function App() {
     previous = finished(state.sessions).at(-1),
     recommendation = recommend(state.sessions);
   const pending = useRef(0);
+  useLayoutEffect(() => {
+    if (page === "summary")
+      window.scrollTo({ top: 0, left: 0, behavior: "instant" });
+  }, [page, selected]);
   const refresh = () =>
     readState()
       .then((s) => {
@@ -293,7 +298,6 @@ export function App() {
   }
   function goDetail() {
     setPage("summary");
-    window.scrollTo(0, 0);
   }
   const session = state.sessions.find((s) => s.id === selected);
   if (!ready)
@@ -304,7 +308,7 @@ export function App() {
       </div>
     );
   return (
-    <div className="shell">
+    <div className={`shell${page === "workout" ? " workout-shell" : ""}`}>
       <header className="topbar">
         <button
           className="wordmark"
@@ -438,7 +442,7 @@ export function App() {
               <section className="training-hero">
                 <div className="hero-top">
                   <span>今日建议</span>
-                  <span>本地规则</span>
+                  <span>可调整</span>
                 </div>
                 <h2>
                   {recommendation.theme}
@@ -545,10 +549,11 @@ export function App() {
               ))}
             </div>
             <div className="plan-controls">
-              <label>
-                可用时间
+              <div className="plan-budget">
+                <label htmlFor="training-budget">今天准备练多久？</label>
                 <select
-                  aria-label="可用时间"
+                  id="training-budget"
+                  aria-describedby="training-budget-help"
                   value={minutes}
                   onChange={(e) => changePlan(theme, +e.target.value, recovery)}
                 >
@@ -558,23 +563,41 @@ export function App() {
                     </option>
                   ))}
                 </select>
-              </label>
-              <label className="toggle">
-                <input
-                  type="checkbox"
-                  checked={recovery}
-                  onChange={(e) => changePlan(theme, minutes, e.target.checked)}
-                />
-                保守复训
-              </label>
+                <p className="helper" id="training-budget-help">
+                  根据你的时间调整动作和组数。
+                </p>
+              </div>
+              <div>
+                <label className="toggle">
+                  <input
+                    type="checkbox"
+                    aria-describedby="recovery-help"
+                    checked={recovery}
+                    onChange={(e) =>
+                      changePlan(theme, minutes, e.target.checked)
+                    }
+                  />
+                  轻量恢复训练
+                </label>
+                <p className="helper" id="recovery-help">
+                  适合停练一段时间，或今天状态不佳时使用。
+                </p>
+              </div>
             </div>
             <div className="rule-note">
               <Settings2 size={19} />
               <p>
-                <strong>本地规则建议 · 可随时调整</strong>
+                <strong>为什么这样安排？</strong>
+                {!previous
+                  ? "这是你的首次训练，完成后会根据实际表现调整下次计划。"
+                  : draft.some((exercise) =>
+                        lastExercise(state.sessions, exercise.catalogId),
+                      )
+                    ? "参考你过去完成的动作、常用器械和今天的时间安排；有记录的动作会显示上次表现供你参考。"
+                    : "根据你的常用器械和今天的时间安排；这些动作还没有历史记录，先建立训练起点。"}
                 {recovery
-                  ? "减少工作组；重量留空，热身后重新选重，不照搬历史负荷。"
-                  : "逐组引用最近同版本动作的实际表现，优先稳定重复，不自动加重。"}
+                  ? " 本次会适当减少训练量，重量可在热身后重新选择。"
+                  : ""}
                 {recommendation.gap !== null && recommendation.gap < 2
                   ? " 近期刚训练过，可换部位或减少组数。"
                   : ""}
@@ -588,7 +611,7 @@ export function App() {
             {state.profile.limits && (
               <p className="warning">
                 已记录限制：{state.profile.limits}
-                。本地规则无法评估个体限制，请自主调整或跳过相关动作。
+                。请根据现场情况调整或跳过相关动作，这些限制仍需你自行确认。
               </p>
             )}
             <div className="plan-list">
@@ -611,12 +634,12 @@ export function App() {
             </p>
             <div className="action-dock">
               <div>
-                <b>{draft.filter((e) => !e.skipped).length} 个动作</b>
+                <b>计划 {draft.filter((e) => !e.skipped).length} 个动作</b>
                 <span>
                   {draft
                     .filter((e) => !e.skipped)
                     .reduce((n, e) => n + e.sets.length, 0)}{" "}
-                  组 · {minutes} 分钟内
+                  组
                 </span>
               </div>
               <Button
@@ -1119,10 +1142,84 @@ function Workout({
       0,
       Math.floor((now - Date.parse(session.startedAt)) / 60000),
     );
+  const hasNextSet = session.exercises.some(
+    (exercise) => !exercise.skipped && exercise.sets.some((set) => !set.actual),
+  );
+  const lastCompletedSet = session.exercises
+    .flatMap((exercise) => exercise.sets)
+    .filter((set) => set.actual)
+    .reduce<TrainingSet | undefined>(
+      (latest, set) =>
+        !latest ||
+        Date.parse(set.actual!.completedAt) >=
+          Date.parse(latest.actual!.completedAt)
+          ? set
+          : latest,
+      undefined,
+    );
+  const restDuration =
+    session.restUntil && lastCompletedSet
+      ? Math.max(
+          1,
+          session.restUntil - Date.parse(lastCompletedSet.actual!.completedAt),
+        )
+      : 1;
+  const restProgress = Math.max(
+    0,
+    Math.min(100, (((session.restUntil ?? 0) - now) / restDuration) * 100),
+  );
+  const notifiedRest = useRef<string | null>(null);
+  const endPanel = useRef<HTMLElement>(null);
+  const endActions = useRef<HTMLDivElement>(null);
+  function revealEndPanel() {
+    // Instant scrolling avoids motion and runs only once the panel exists.
+    endPanel.current?.scrollIntoView({ block: "start", behavior: "instant" });
+    endActions.current?.scrollIntoView({
+      block: "nearest",
+      behavior: "instant",
+    });
+  }
+  useLayoutEffect(() => {
+    if (end) revealEndPanel();
+  }, [end]);
   useEffect(() => {
-    const timer = setInterval(() => setNow(Date.now()), 500);
-    return () => clearInterval(timer);
+    const refreshClock = () => setNow(Date.now());
+    const timer = setInterval(refreshClock, 500);
+    document.addEventListener("visibilitychange", refreshClock);
+    window.addEventListener("pageshow", refreshClock);
+    return () => {
+      clearInterval(timer);
+      document.removeEventListener("visibilitychange", refreshClock);
+      window.removeEventListener("pageshow", refreshClock);
+    };
   }, []);
+  useEffect(() => {
+    if (
+      !session.restUntil ||
+      now < session.restUntil ||
+      !hasNextSet ||
+      !lastCompletedSet ||
+      document.visibilityState !== "visible"
+    )
+      return;
+    const cycle = lastCompletedSet.id;
+    if (notifiedRest.current === cycle) return;
+    notifiedRest.current = cycle;
+    // UI-only acknowledgement survives refresh; training facts stay in IndexedDB.
+    try {
+      const key = `traintrace-rest-notified:${session.id}`;
+      if (sessionStorage.getItem(key) === cycle) return;
+      sessionStorage.setItem(key, cycle);
+    } catch {
+      /* Storage restrictions must not interrupt recording. */
+    }
+    try {
+      if (typeof navigator.vibrate === "function")
+        navigator.vibrate([200, 120, 200]);
+    } catch {
+      /* The persistent visual notice is the fallback. */
+    }
+  }, [now, session.restUntil, session.id, hasNextSet, lastCompletedSet?.id]);
   useEffect(() => {
     setEdit(false);
     setFeedback(null);
@@ -1199,8 +1296,12 @@ function Workout({
         </button>
       </div>
       {end && (
-        <section className="end-panel">
-          <h2>结束这节训练？</h2>
+        <section
+          className="end-panel"
+          ref={endPanel}
+          aria-labelledby="end-training-title"
+        >
+          <h2 id="end-training-title">结束这节训练？</h2>
           <p>
             将保存已完成的 {stats(session).sets}{" "}
             组。未完成计划不会计入实际记录。
@@ -1222,7 +1323,7 @@ function Workout({
               }}
             />
           </label>
-          <div className="button-row">
+          <div className="button-row" ref={endActions}>
             <Button
               disabled={busy || stats(session).sets === 0}
               onClick={() => void onFinish(note)}
@@ -1548,7 +1649,12 @@ function Workout({
                   <ArrowRight size={18} />
                 </Button>
               ) : (
-                <Button onClick={() => setEnd(true)}>
+                <Button
+                  onClick={() => {
+                    if (end) revealEndPanel();
+                    else setEnd(true);
+                  }}
+                >
                   结束并查看总结
                   <Flag size={18} />
                 </Button>
@@ -1560,42 +1666,66 @@ function Workout({
           </p>
         </section>
       )}
-      {rest > 0 ? (
-        <div className="rest-dock" role="timer" aria-label="组间休息">
-          <div>
-            <span>组间休息</span>
-            <strong>
-              {String(Math.floor(rest / 60)).padStart(2, "0")}
-              <i>:</i>
-              {String(rest % 60).padStart(2, "0")}
-            </strong>
+      {session.restUntil !== null && hasNextSet ? (
+        rest > 0 ? (
+          <div className="rest-dock" role="timer" aria-label="组间休息">
+            <div className="rest-time">
+              <span>组间休息</span>
+              <strong>
+                {String(Math.floor(rest / 60)).padStart(2, "0")}
+                <i>:</i>
+                {String(rest % 60).padStart(2, "0")}
+              </strong>
+            </div>
+            <progress
+              className="rest-progress"
+              aria-label="休息剩余进度"
+              max={100}
+              value={restProgress}
+            />
+            <button
+              disabled={busy}
+              onClick={() =>
+                void update((s) => ({
+                  ...s,
+                  restUntil:
+                    s.restUntil === null
+                      ? null
+                      : Math.max(s.restUntil, Date.now()) + 30000,
+                }))
+              }
+            >
+              +30 秒
+            </button>
+            <button
+              aria-label="跳过休息"
+              disabled={busy}
+              onClick={() => void update((s) => ({ ...s, restUntil: null }))}
+            >
+              跳过
+              <SkipForward size={18} />
+            </button>
           </div>
-          <button
-            disabled={busy}
-            onClick={() =>
-              void update((s) => ({
-                ...s,
-                restUntil: (s.restUntil ?? Date.now()) + 30000,
-              }))
-            }
-          >
-            +30 秒
-          </button>
-          <button
-            aria-label="跳过休息"
-            disabled={busy}
-            onClick={() => void update((s) => ({ ...s, restUntil: null }))}
-          >
-            跳过
-            <SkipForward size={18} />
-          </button>
-        </div>
+        ) : (
+          <div className="rest-dock rest-complete" role="status">
+            <Check size={27} />
+            <div>
+              <strong>休息结束，可以开始下一组</strong>
+              <span>准备好后，继续记录下一组。</span>
+            </div>
+            <button
+              aria-label="收起休息提示"
+              disabled={busy}
+              onClick={() => void update((s) => ({ ...s, restUntil: null }))}
+            >
+              <X size={19} />
+            </button>
+          </div>
+        )
       ) : (
         <div className="workout-footer">
           <ShieldCheck size={15} />
-          {session.restUntil
-            ? "休息结束，可以准备下一组。"
-            : "每次完成即保存，退出后可继续。"}
+          每次完成即保存，退出后可继续。
         </div>
       )}
     </>

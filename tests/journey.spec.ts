@@ -55,7 +55,7 @@ test("mobile gym journey: setup, history prefill, recovery, review, next workout
   else
     await page.getByRole("button", { name: "开始训练", exact: true }).click();
   // Long-gap recovery starts conservatively; user explicitly opts out for this test.
-  const toggle = page.getByRole("checkbox", { name: "保守复训" });
+  const toggle = page.getByRole("checkbox", { name: "轻量恢复训练" });
   if (await toggle.isChecked()) await toggle.uncheck();
   await expect(page.getByLabel("杠铃卧推 第1组重量")).toHaveValue("60");
   await expect(page.getByLabel("杠铃卧推 第3组次数")).toHaveValue("7");
@@ -245,4 +245,355 @@ test("first record has no invented load, mobile controls can add/remove/skip and
   await saved(page);
   expect((await stateOf(page)).sessions[0].status).toBe("discarded");
   await expect(page.getByText("你的第一节训练，从这里开始。")).toBeVisible();
+});
+
+async function freshChestPlan(page: Page) {
+  await page.goto("/");
+  await page.getByRole("button", { name: "准备好了，开始训练" }).click();
+  await page.getByRole("button", { name: "开始训练", exact: true }).click();
+}
+async function twoSetWorkout(page: Page) {
+  await freshChestPlan(page);
+  await page.getByLabel("今天准备练多久？").selectOption("20");
+  await page
+    .locator(".plan-exercise")
+    .nth(1)
+    .getByRole("button", { name: "跳过", exact: true })
+    .click();
+  await page.getByLabel("杠铃卧推 第1组重量").fill("60");
+  await page.getByLabel("杠铃卧推 第2组重量").fill("60");
+  await page.getByRole("button", { name: "开始记录" }).click();
+  await saved(page);
+}
+async function colors(page: Page, selectors: string[]) {
+  for (const selector of selectors)
+    await page.locator(selector).first().waitFor({ state: "attached" });
+  return page.evaluate(
+    (selectors) =>
+      selectors.map((selector) => {
+        const element = document.querySelector(selector)!;
+        const style = getComputedStyle(element);
+        return {
+          selector,
+          color: style.color,
+          background: style.backgroundColor,
+          border: style.borderColor,
+          colorScheme: style.colorScheme,
+        };
+      }),
+    selectors,
+  );
+}
+
+test("light and dark preferences retain the same light app and form colors", async ({
+  page,
+}) => {
+  await page.emulateMedia({ colorScheme: "light" });
+  await page.goto("/");
+  await expect(page.locator('meta[name="color-scheme"]')).toHaveAttribute(
+    "content",
+    "light",
+  );
+  await page.getByText("动作偏好或限制（选填）", { exact: true }).click();
+  const formSelectors = [
+    "html",
+    "body",
+    "select",
+    "textarea",
+    ".choice-grid button.chosen",
+  ];
+  const formLight = await colors(page, formSelectors);
+  await page.emulateMedia({ colorScheme: "dark" });
+  expect(await colors(page, formSelectors)).toEqual(formLight);
+  await expect(page.locator("html")).toHaveCSS("color-scheme", "light only");
+  await page.getByRole("button", { name: "准备好了，开始训练" }).click();
+  const homeSelectors = [
+    "body",
+    ".shell",
+    ".wordmark",
+    ".greeting h1",
+    ".training-hero",
+    ".training-hero h2",
+    ".training-hero .button",
+    ".bottom-nav",
+  ];
+  const dark = await colors(page, homeSelectors);
+  await mkdir(".impeccable/review/v11", { recursive: true });
+  await page.screenshot({
+    path: ".impeccable/review/v11/home-dark.png",
+    fullPage: true,
+  });
+  await page.emulateMedia({ colorScheme: "light" });
+  expect(await colors(page, homeSelectors)).toEqual(dark);
+  await page.screenshot({
+    path: ".impeccable/review/v11/mobile.png",
+    fullPage: true,
+  });
+  await page.setViewportSize({ width: 1280, height: 900 });
+  await page.screenshot({
+    path: ".impeccable/review/v11/desktop.png",
+    fullPage: true,
+  });
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.getByRole("button", { name: "开始训练", exact: true }).click();
+  const planLight = await colors(page, [
+    "select",
+    "input[type=checkbox]",
+    ".plan-set input",
+    ".action-dock .button",
+  ]);
+  await page.emulateMedia({ colorScheme: "dark" });
+  expect(
+    await colors(page, [
+      "select",
+      "input[type=checkbox]",
+      ".plan-set input",
+      ".action-dock .button",
+    ]),
+  ).toEqual(planLight);
+});
+
+test("time budget, recovery mode, and explanations match the actual plan", async ({
+  page,
+}) => {
+  await freshChestPlan(page);
+  await expect(page.locator(".rule-note")).toContainText(
+    "这是你的首次训练，完成后会根据实际表现调整下次计划。",
+  );
+  await expect(
+    page.getByText("根据你的时间调整动作和组数。", { exact: true }),
+  ).toBeVisible();
+  await page.getByLabel("今天准备练多久？").selectOption("20");
+  await expect(page.locator(".plan-exercise")).toHaveCount(2);
+  await expect(page.locator(".plan-set")).toHaveCount(4);
+  await expect(page.locator(".action-dock")).toContainText("计划 2 个动作");
+  await expect(page.locator(".action-dock")).not.toContainText("分钟");
+  await page.getByLabel("今天准备练多久？").selectOption("60");
+  await expect(page.locator(".plan-set")).toHaveCount(9);
+  const recovery = page.getByRole("checkbox", { name: "轻量恢复训练" });
+  await recovery.check();
+  await expect(page.locator(".plan-set")).toHaveCount(6);
+  await expect(page.locator(".rule-note")).toContainText(
+    "本次会适当减少训练量，重量可在热身后重新选择。",
+  );
+  await expect(page.getByLabel("杠铃卧推 第1组重量")).toHaveValue("");
+  await recovery.uncheck();
+  await expect(page.locator(".plan-set")).toHaveCount(9);
+  await expect(page.locator(".rule-note")).not.toContainText(
+    "本次会适当减少训练量",
+  );
+  await page.screenshot({
+    path: ".impeccable/review/v11/plan.png",
+    fullPage: true,
+  });
+  // History exists, but none of today's movements has a comparable record.
+  await page.getByRole("button", { name: "返回", exact: true }).click();
+  await page.getByRole("button", { name: "我的", exact: true }).click();
+  await importFile(
+    page,
+    "## 2026-10-01｜背部\n### 实际完成\n- 高位下拉：40 kg × 8 / 8\n",
+  );
+  await page.getByRole("button", { name: "训练", exact: true }).click();
+  await page.getByRole("button", { name: "开始训练", exact: true }).click();
+  await expect(page.locator(".rule-note")).not.toContainText(
+    "这是你的首次训练",
+  );
+  await expect(page.locator(".rule-note")).toContainText(
+    "这些动作还没有历史记录",
+  );
+});
+
+test("timestamp rest, extension, skip, once-only vibration and final-set behavior", async ({
+  page,
+}) => {
+  await page.clock.install();
+  await page.addInitScript(() => {
+    (window as any).__vibrations = [];
+    Object.defineProperty(navigator, "vibrate", {
+      configurable: true,
+      value: (pattern: number[]) => {
+        (window as any).__vibrations.push(pattern);
+        return true;
+      },
+    });
+  });
+  await twoSetWorkout(page);
+  await page.getByRole("button", { name: "完成第 1 组" }).click();
+  await saved(page);
+  const first = (await stateOf(page)).sessions[0].restUntil;
+  await expect(page.getByRole("timer")).toBeVisible();
+  await expect(page.locator(".rest-dock strong")).toHaveCSS(
+    "font-size",
+    "56px",
+  );
+  await page.getByRole("button", { name: "+30 秒", exact: true }).click();
+  await saved(page);
+  expect((await stateOf(page)).sessions[0].restUntil).toBe(first + 30000);
+  await page.clock.fastForward(60000);
+  const progress = await page
+    .getByRole("progressbar", { name: "休息剩余进度" })
+    .getAttribute("value");
+  expect(+progress!).toBeGreaterThan(50);
+  expect(+progress!).toBeLessThan(65);
+  await page.locator(".set-editor").scrollIntoViewIfNeeded();
+  for (const width of [320, 390]) {
+    await page.setViewportSize({ width, height: 844 });
+    await page.locator(".set-editor .button").scrollIntoViewIfNeeded();
+    const button = await page.locator(".set-editor .button").boundingBox(),
+      dock = await page.getByRole("timer").boundingBox();
+    expect(button!.y + button!.height).toBeLessThanOrEqual(dock!.y);
+    expect(
+      await page.evaluate(
+        () => document.documentElement.scrollWidth <= innerWidth,
+      ),
+    ).toBe(true);
+  }
+  await page.screenshot({ path: ".impeccable/review/v11/rest.png" });
+  // Moving the clock without firing interval callbacks models a suspended tab.
+  await page.clock.setSystemTime(new Date(first + 30500));
+  await page.evaluate(() =>
+    document.dispatchEvent(new Event("visibilitychange")),
+  );
+  await expect(
+    page.getByText("休息结束，可以开始下一组", { exact: true }),
+  ).toBeVisible();
+  expect(await page.evaluate(() => (window as any).__vibrations)).toEqual([
+    [200, 120, 200],
+  ]);
+  await page.clock.runFor(2000);
+  await page.getByRole("button", { name: "调整当前动作" }).click();
+  expect(await page.evaluate(() => (window as any).__vibrations)).toHaveLength(
+    1,
+  );
+  await page.reload();
+  await page.getByRole("button", { name: "继续未完成训练" }).click();
+  await expect(
+    page.getByText("休息结束，可以开始下一组", { exact: true }),
+  ).toBeVisible();
+  expect(await page.evaluate(() => (window as any).__vibrations)).toHaveLength(
+    0,
+  );
+  await page.screenshot({ path: ".impeccable/review/v11/rest-ended.png" });
+  await page.getByRole("button", { name: "完成第 2 组" }).click();
+  await saved(page);
+  expect((await stateOf(page)).sessions[0].restUntil).toBeNull();
+  await expect(page.locator(".rest-dock")).toHaveCount(0);
+});
+
+test("manual skip never vibrates and unsupported vibration retains visual completion", async ({
+  page,
+}) => {
+  await page.clock.install();
+  await page.addInitScript(() => {
+    (window as any).__vibrations = [];
+    Object.defineProperty(navigator, "vibrate", {
+      configurable: true,
+      value: (pattern: number[]) => {
+        (window as any).__vibrations.push(pattern);
+        return true;
+      },
+    });
+  });
+  await twoSetWorkout(page);
+  await page.getByRole("button", { name: "新增一组" }).click();
+  await saved(page);
+  await page.getByRole("button", { name: "完成第 1 组" }).click();
+  await page.getByRole("button", { name: "跳过休息", exact: true }).click();
+  await saved(page);
+  expect((await stateOf(page)).sessions[0].restUntil).toBeNull();
+  await page.clock.fastForward(125000);
+  expect(await page.evaluate(() => (window as any).__vibrations)).toHaveLength(
+    0,
+  );
+  await page.evaluate(() =>
+    Object.defineProperty(navigator, "vibrate", {
+      value: undefined,
+      configurable: true,
+    }),
+  );
+  await page.getByRole("button", { name: "完成第 2 组" }).click();
+  await saved(page);
+  await page.clock.fastForward(125000);
+  await expect(
+    page.getByText("休息结束，可以开始下一组", { exact: true }),
+  ).toBeVisible();
+  await page.getByRole("button", { name: "完成第 3 组" }).click();
+  await expect(page.locator(".rest-dock")).toHaveCount(0);
+});
+
+test("end confirmation scrolls into view, failed save stays put, summary starts at top", async ({
+  page,
+}) => {
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  await twoSetWorkout(page);
+  await page.getByRole("button", { name: "完成第 1 组" }).click();
+  await page.getByRole("button", { name: "跳过休息", exact: true }).click();
+  await page.getByRole("button", { name: "完成第 2 组" }).click();
+  await saved(page);
+  const open = page.locator(".exercise-complete").getByRole("button", {
+    name: "结束并查看总结",
+    exact: true,
+  });
+  await open.scrollIntoViewIfNeeded();
+  expect(await page.evaluate(() => scrollY)).toBeGreaterThan(0);
+  await open.click();
+  const panel = page.getByRole("region", { name: "结束这节训练？" }),
+    confirm = panel.getByRole("button", {
+      name: "结束并查看总结",
+      exact: true,
+    });
+  for (const viewport of [
+    { width: 320, height: 568 },
+    { width: 390, height: 844 },
+  ]) {
+    await page.setViewportSize(viewport);
+    // Reopening an already visible panel must also reveal its confirmation.
+    await open.click();
+    await expect(panel).toBeInViewport();
+    const bounds = await confirm.boundingBox();
+    expect(bounds!.y).toBeGreaterThanOrEqual(0);
+    expect(bounds!.y + bounds!.height).toBeLessThan(
+      await page.evaluate(() => innerHeight),
+    );
+  }
+  await page.screenshot({
+    path: ".impeccable/review/v11/end-confirmation.png",
+  });
+  await page.getByLabel("训练后感受").fill("下次保持重量");
+  // Inject a failed IndexedDB commit; no successful-save navigation is allowed.
+  await page.evaluate(() => {
+    const original = IDBObjectStore.prototype.put;
+    (window as any).__failWrites = true;
+    IDBObjectStore.prototype.put = function (
+      ...args: Parameters<IDBObjectStore["put"]>
+    ) {
+      if ((window as any).__failWrites)
+        throw new DOMException("simulated quota failure", "QuotaExceededError");
+      return original.apply(this, args);
+    };
+  });
+  await confirm.click();
+  await expect(page.getByRole("alert")).toContainText("保存未成功");
+  await expect(page.getByRole("heading", { name: "训练已保存" })).toHaveCount(
+    0,
+  );
+  expect((await stateOf(page)).sessions[0].status).toBe("active");
+  await page.evaluate(() => ((window as any).__failWrites = false));
+  await confirm.click();
+  await expect(page.getByRole("heading", { name: "训练已保存" })).toBeVisible();
+  expect(await page.evaluate(() => scrollY)).toBe(0);
+  const actual = (await stateOf(page)).sessions[0];
+  expect(actual.status).toBe("finished");
+  expect(actual.note).toBe("下次保持重量");
+  expect(
+    actual.exercises.flatMap((e: any) => e.sets.filter((s: any) => s.actual)),
+  ).toHaveLength(2);
+  expect(actual.exercises[1].sets.every((s: any) => s.actual === null)).toBe(
+    true,
+  );
+  await page.reload();
+  await page.getByRole("button", { name: "记录", exact: true }).click();
+  await page.locator(".history-row").click();
+  await expect(page.getByRole("heading", { name: "训练已保存" })).toBeVisible();
+  expect(await page.evaluate(() => scrollY)).toBe(0);
 });

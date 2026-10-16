@@ -70,6 +70,27 @@ describe("actual training facts", () => {
     expect(volume(s.exercises[0])).toBe(480);
     expect(s.restUntil).toBe(now + 121000);
   });
+  it.each([true, false])(
+    "starts rest only while a non-skipped work set remains (skipped=%s)",
+    (skipped) => {
+      let s = session();
+      const extra = makeExercise(catalog[1], [], 1);
+      extra.skipped = skipped;
+      extra.sets[0].weight = 20;
+      s.exercises.push(extra);
+      s.exercises[0].sets.forEach((t) => {
+        t.weight = 60;
+      });
+      for (const set of s.exercises[0].sets)
+        s = completeSet(s, s.exercises[0].id, set.id, now + 1000);
+      expect(s.restUntil).toBe(skipped ? null : now + 121000);
+      if (!skipped) {
+        s = completeSet(s, extra.id, extra.sets[0].id, now + 2000);
+        expect(s.restUntil).toBeNull();
+      }
+      expect(stats(s).sets).toBe(skipped ? 3 : 4);
+    },
+  );
   it("rejects unknown weight and invalid reps", () => {
     const s = session(),
       e = s.exercises[0];

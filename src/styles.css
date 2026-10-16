@@ -1,4 +1,7 @@
 :root {
+  color-scheme: light;
+  color-scheme: only light;
+  scroll-padding-bottom: calc(148px + env(safe-area-inset-bottom));
   font-family:
     "Helvetica Neue", Helvetica, "PingFang SC", "Microsoft YaHei", sans-serif;
   color: #202822;
@@ -20,6 +23,8 @@
 }
 body {
   margin: 0;
+  color: var(--ink);
+  background: #e8e8e0;
 }
 button,
 input,
@@ -27,6 +32,7 @@ select,
 textarea {
   font: inherit;
   color: inherit;
+  color-scheme: inherit;
 }
 button,
 a,
@@ -634,22 +640,21 @@ summary::marker {
   font-weight: 600;
 }
 .plan-controls {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 20px;
+  display: grid;
+  gap: 16px;
   margin-bottom: 22px;
 }
-.plan-controls > label:first-child {
-  display: flex;
+.plan-budget {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 110px;
   align-items: center;
-  gap: 12px;
-  flex: 1;
+  gap: 8px 16px;
+}
+.plan-budget .helper {
+  grid-column: 1 / -1;
 }
 .plan-controls select {
-  width: auto;
   margin: 0;
-  flex: 1;
 }
 .toggle {
   display: flex;
@@ -1105,7 +1110,8 @@ summary::marker {
   display: flex;
   align-items: center;
   gap: 18px;
-  padding: 12px 28px calc(12px + env(safe-area-inset-bottom));
+  min-height: calc(112px + env(safe-area-inset-bottom));
+  padding: 16px 28px calc(16px + env(safe-area-inset-bottom));
 }
 .rest-dock > div {
   display: flex;
@@ -1118,7 +1124,7 @@ summary::marker {
 }
 .rest-dock strong {
   font-family: "Barlow Condensed", sans-serif;
-  font-size: 38px;
+  font-size: 56px;
   line-height: 1.05;
   font-weight: 600;
 }
@@ -1142,11 +1148,50 @@ summary::marker {
   border-radius: 4px;
   padding: 10px 13px;
 }
+.rest-progress {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 4px;
+  border: 0;
+  appearance: none;
+  background: #bdcdae;
+  color: var(--forest);
+  accent-color: var(--forest);
+}
+.rest-progress::-webkit-progress-bar {
+  background: #bdcdae;
+}
+.rest-progress::-webkit-progress-value {
+  background: var(--forest);
+}
+.rest-progress::-moz-progress-bar {
+  background: var(--forest);
+}
+.rest-complete {
+  gap: 12px;
+  color: var(--forest);
+}
+.rest-complete strong {
+  font-family: inherit;
+  font-size: 16px;
+  line-height: 1.45;
+}
+.rest-complete > button:last-child {
+  min-width: 44px;
+  padding: 0;
+  border: 0;
+}
+.workout-shell {
+  padding-bottom: calc(164px + env(safe-area-inset-bottom));
+}
 .end-panel {
   background: #e6ebdf;
   padding: 19px;
   margin: 16px 0;
   border-radius: 5px;
+  scroll-margin-top: 16px;
 }
 .end-panel h2 {
   font-size: 21px;
@@ -1168,6 +1213,8 @@ summary::marker {
 }
 .end-panel .button-row {
   flex-direction: column;
+  scroll-margin-bottom: calc(148px + env(safe-area-inset-bottom));
+  scroll-margin-top: 16px;
 }
 .end-panel details {
   margin-top: 12px;

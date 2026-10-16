@@ -172,27 +172,31 @@ export function completeSet(
     t.reps > 200
   )
     throw Error("请确认本组重量和次数");
+  const exercises = s.exercises.map((x) =>
+    x.id !== e.id
+      ? x
+      : {
+          ...x,
+          sets: x.sets.map((y) =>
+            y.id !== t.id
+              ? y
+              : {
+                  ...y,
+                  actual: {
+                    weight: t.weight!,
+                    reps: t.reps,
+                    completedAt: new Date(now).toISOString(),
+                  },
+                },
+          ),
+        },
+  );
+  const hasNextSet = exercises.some(
+    (exercise) => !exercise.skipped && exercise.sets.some((set) => !set.actual),
+  );
   return {
     ...s,
-    restUntil: now + e.rest * 1000,
-    exercises: s.exercises.map((x) =>
-      x.id !== e.id
-        ? x
-        : {
-            ...x,
-            sets: x.sets.map((y) =>
-              y.id !== t.id
-                ? y
-                : {
-                    ...y,
-                    actual: {
-                      weight: t.weight!,
-                      reps: t.reps,
-                      completedAt: new Date(now).toISOString(),
-                    },
-                  },
-            ),
-          },
-    ),
+    exercises,
+    restUntil: hasNextSet ? now + e.rest * 1000 : null,
   };
 }
