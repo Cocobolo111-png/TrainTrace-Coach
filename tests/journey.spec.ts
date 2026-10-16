@@ -1,5 +1,20 @@
 import { test, expect, type Page } from "@playwright/test";
 import { readFile, mkdir } from "node:fs/promises";
+import {
+  emptyState,
+  completeSet,
+  finishSession,
+  type State,
+  type Profile,
+  type Session,
+} from "../src/model";
+import { makeExercise, catalog } from "../src/coach";
+async function skipIntro(page: Page) {
+  await page.getByRole("button", { name: "跳过新手引导", exact: true }).click();
+  await expect(
+    page.getByRole("heading", { name: "先了解一下你的训练习惯。" }),
+  ).toBeVisible();
+}
 async function saved(page: Page) {
   await expect(
     page.getByRole("status").filter({ hasText: "正在保存" }),
@@ -38,12 +53,13 @@ test("mobile gym journey: setup, history prefill, recovery, review, next workout
   const errors: string[] = [];
   page.on("pageerror", (e) => errors.push(e.message));
   await page.goto("/");
+  await skipIntro(page);
   await expect(
-    page.getByRole("heading", { name: "你的训练， 值得被记住。" }),
+    page.getByRole("heading", { name: "先了解一下你的训练习惯。" }),
   ).toBeVisible();
   await page.getByRole("button", { name: "准备好了，开始训练" }).click();
   await saved(page);
-  await page.getByRole("button", { name: "我的", exact: true }).click();
+  await page.getByRole("button", { name: "设置", exact: true }).click();
   // Synthetic historical facts are imported through the same reviewable UI users use.
   const markdown =
     "## 2026-10-01｜胸部\n### 实际完成\n- 杠铃卧推：60 kg × 8 / 8 / 7\n";
@@ -143,7 +159,7 @@ test("mobile gym journey: setup, history prefill, recovery, review, next workout
   await page.getByRole("button", { name: "开始记录" }).click();
   await saved(page);
   await page.getByRole("button", { name: "返回", exact: true }).click();
-  await page.getByRole("button", { name: "我的", exact: true }).click();
+  await page.getByRole("button", { name: "设置", exact: true }).click();
   const download = page.waitForEvent("download");
   await page.getByRole("button", { name: "导出完整备份" }).click();
   const file = await download,
@@ -157,12 +173,13 @@ test("mobile gym journey: setup, history prefill, recovery, review, next workout
   });
   const restored = await fresh.newPage();
   await restored.goto("/");
+  await skipIntro(restored);
   await restored.getByText("已经有训练数据？直接导入").click();
   await importFile(restored, contents, "backup.json");
   await expect(
     restored.getByRole("button", { name: "继续未完成训练" }),
   ).toBeVisible();
-  await restored.getByRole("button", { name: "我的", exact: true }).click();
+  await restored.getByRole("button", { name: "设置", exact: true }).click();
   await importFile(restored, contents, "backup.json");
   expect((await stateOf(restored)).sessions).toHaveLength(3);
   await restored.evaluate(async () => {
@@ -225,6 +242,7 @@ test("first record has no invented load, mobile controls can add/remove/skip and
     }),
   );
   await page.goto("/");
+  await skipIntro(page);
   await page.getByRole("button", { name: "准备好了，开始训练" }).click();
   await saved(page);
   await page.getByRole("button", { name: "开始训练", exact: true }).click();
@@ -249,6 +267,7 @@ test("first record has no invented load, mobile controls can add/remove/skip and
 
 async function freshChestPlan(page: Page) {
   await page.goto("/");
+  await skipIntro(page);
   await page.getByRole("button", { name: "准备好了，开始训练" }).click();
   await page.getByRole("button", { name: "开始训练", exact: true }).click();
 }
@@ -290,6 +309,7 @@ test("light and dark preferences retain the same light app and form colors", asy
 }) => {
   await page.emulateMedia({ colorScheme: "light" });
   await page.goto("/");
+  await skipIntro(page);
   await expect(page.locator('meta[name="color-scheme"]')).toHaveAttribute(
     "content",
     "light",
@@ -388,7 +408,7 @@ test("time budget, recovery mode, and explanations match the actual plan", async
   });
   // History exists, but none of today's movements has a comparable record.
   await page.getByRole("button", { name: "返回", exact: true }).click();
-  await page.getByRole("button", { name: "我的", exact: true }).click();
+  await page.getByRole("button", { name: "设置", exact: true }).click();
   await importFile(
     page,
     "## 2026-10-01｜背部\n### 实际完成\n- 高位下拉：40 kg × 8 / 8\n",
@@ -596,4 +616,389 @@ test("end confirmation scrolls into view, failed save stays put, summary starts 
   await page.locator(".history-row").click();
   await expect(page.getByRole("heading", { name: "训练已保存" })).toBeVisible();
   expect(await page.evaluate(() => scrollY)).toBe(0);
+});
+
+async function advanceGuide(page: Page) {
+  const next = page.locator(".guide-next");
+  await expect(next).toBeEnabled();
+  await next.click();
+}
+async function openChest(page: Page) {
+  if (await page.getByRole("button", { name: "胸部", exact: true }).count())
+    await page.getByRole("button", { name: "胸部", exact: true }).click();
+  else
+    await page.getByRole("button", { name: "开始训练", exact: true }).click();
+}
+const existingProfile: Profile = {
+  goal: "增肌",
+  experience: "规律训练",
+  frequency: 3,
+  equipment: ["杠铃", "哑铃", "固定器械", "自重"],
+  preference: "均衡",
+  limits: "原有偏好",
+};
+function previousData(): State {
+  const now = Date.now();
+  function create(id: string, time: number, count: number): Session {
+    const e = makeExercise(catalog[0], [], count);
+    e.sets.forEach((s) => (s.weight = 60));
+    return {
+      id,
+      theme: "胸部",
+      startedAt: new Date(time).toISOString(),
+      endedAt: null,
+      status: "active",
+      restUntil: null,
+      note: id,
+      recovery: false,
+      source: "app",
+      exercises: [e],
+    };
+  }
+  let history = create("existing-history", now - 600000, 1);
+  history = completeSet(
+    history,
+    history.exercises[0].id,
+    history.exercises[0].sets[0].id,
+    now - 500000,
+  );
+  history = finishSession(history, new Date(now - 400000).toISOString());
+  let active = create("existing-active", now - 60000, 3);
+  active = completeSet(
+    active,
+    active.exercises[0].id,
+    active.exercises[0].sets[0].id,
+    now - 10000,
+  );
+  return {
+    ...emptyState(),
+    revision: 14,
+    profile: existingProfile,
+    sessions: [history, active],
+  };
+}
+async function installExistingData(page: Page, state: State) {
+  await page.goto("/");
+  await page.evaluate(
+    (data) =>
+      new Promise<void>((resolve, reject) => {
+        const request = indexedDB.open("traintrace-v1", 1);
+        request.onupgradeneeded = () =>
+          request.result.createObjectStore("state");
+        request.onerror = () => reject(request.error);
+        request.onsuccess = () => {
+          const db = request.result,
+            tx = db.transaction("state", "readwrite");
+          tx.objectStore("state").put(data, "main");
+          tx.oncomplete = () => {
+            db.close();
+            resolve();
+          };
+          tx.onabort = () => reject(tx.error);
+        };
+      }),
+    state,
+  );
+  await page.reload();
+}
+
+test("immersive guide advances once per tap, resumes, and completes before the existing form", async ({
+  page,
+}) => {
+  await mkdir(".impeccable/review/v112", { recursive: true });
+  await page.emulateMedia({ reducedMotion: "no-preference" });
+  await page.goto("/");
+  const guide = page.getByRole("region", { name: "新手引导", exact: true });
+  await expect(
+    page.getByRole("heading", { name: "每一次训练， 都不该从零开始。" }),
+  ).toBeVisible();
+  await expect(
+    page.locator(".shell,header,nav,.profile-form,.data-tools"),
+  ).toHaveCount(0);
+  await expect(guide).toHaveCSS("background-color", "rgb(32, 40, 34)");
+  await expect(guide.locator("img,svg,canvas")).toHaveCount(0);
+  await page.screenshot({ path: ".impeccable/review/v112/intro-01.png" });
+  // Same-turn clicks exercise the synchronous lock before React disables the button.
+  await page.evaluate(() => {
+    const b = document.querySelector<HTMLButtonElement>(".guide-next")!;
+    for (let i = 0; i < 8; i++) b.click();
+  });
+  await expect(guide).toHaveAttribute("data-transitioning", "true");
+  await expect(page.locator(".guide-next")).toBeDisabled();
+  await expect(
+    page.getByRole("heading", { name: "练完一组， 点一下就够。" }),
+  ).toBeVisible();
+  await expect(page.locator(".guide-next")).toBeEnabled();
+  await expect(page.locator(".guide-copy")).toHaveCSS(
+    "transition-duration",
+    "0.24s, 0.24s",
+  );
+  await expect(page.getByText("02 / 03", { exact: true })).toBeVisible();
+  await page.screenshot({ path: ".impeccable/review/v112/intro-02.png" });
+  await page.reload();
+  await expect(
+    page.getByRole("heading", { name: "练完一组， 点一下就够。" }),
+  ).toBeVisible();
+  await page.locator(".guide-next").press("Enter");
+  await page.locator(".guide-next").evaluate((button) => button.blur());
+  await expect(
+    page.getByRole("heading", { name: "下一次， 比上一次更懂你。" }),
+  ).toBeVisible();
+  await expect(page.locator(".guide-next")).toBeEnabled();
+  await expect(guide).toHaveCSS("background-color", "rgb(183, 214, 155)");
+  await page.waitForTimeout(500);
+  await expect(page.getByText("03 / 03", { exact: true })).toBeVisible();
+  for (const viewport of [
+    { width: 320, height: 568 },
+    { width: 390, height: 844 },
+    { width: 844, height: 390 },
+    { width: 1280, height: 900 },
+  ]) {
+    await page.setViewportSize(viewport);
+    const box = await guide.boundingBox(),
+      title = await page.getByRole("heading").boundingBox();
+    expect(box!.y).toBe(0);
+    expect(box!.height).toBe(viewport.height);
+    expect(title!.x).toBeGreaterThanOrEqual(0);
+    expect(title!.x + title!.width).toBeLessThanOrEqual(viewport.width);
+    expect(title!.y).toBeGreaterThan(0);
+    expect(title!.y + title!.height).toBeLessThan(viewport.height - 60);
+    expect(
+      await page.evaluate(
+        () => document.documentElement.scrollWidth <= innerWidth,
+      ),
+    ).toBe(true);
+    if (viewport.width === 1280)
+      await page.screenshot({ path: ".impeccable/review/v112/desktop.png" });
+  }
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.screenshot({ path: ".impeccable/review/v112/mobile.png" });
+  await advanceGuide(page);
+  await expect(
+    page.getByRole("heading", { name: "先了解一下你的训练习惯。" }),
+  ).toBeVisible();
+  await expect(
+    page.getByText("这些设置以后都可以修改。", { exact: true }),
+  ).toBeVisible();
+  await expect(
+    page.getByText("花一点时间认识你。", { exact: false }),
+  ).toHaveCount(0);
+  await page.reload();
+  await expect(page.locator(".immersive-guide")).toHaveCount(0);
+  await expect(page.locator(".profile-form")).toBeVisible();
+  await page.getByRole("button", { name: "准备好了，开始训练" }).click();
+  await expect(
+    page.getByRole("button", { name: "偏好设置", exact: true }),
+  ).toBeVisible();
+  await page.reload();
+  await expect(page.locator(".immersive-guide")).toHaveCount(0);
+  await expect(
+    page.getByRole("button", { name: "偏好设置", exact: true }),
+  ).toBeVisible();
+});
+
+test("reduced motion switches directly; text and blank space both advance and skip opens setup", async ({
+  page,
+}) => {
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  await page.goto("/");
+  const title = page.getByRole("heading", {
+    name: "每一次训练， 都不该从零开始。",
+  });
+  await expect(title).toBeVisible();
+  await expect(page.locator(".guide-copy")).toHaveCSS(
+    "transition-duration",
+    "0s",
+  );
+  const rect = await title.boundingBox();
+  await page.mouse.click(rect!.x + rect!.width / 2, rect!.y + rect!.height / 2);
+  await expect(
+    page.getByRole("heading", { name: "练完一组， 点一下就够。" }),
+  ).toBeVisible();
+  await expect(page.locator(".guide-next")).toBeEnabled();
+  await page.mouse.click(12, 150);
+  await expect(
+    page.getByRole("heading", { name: "下一次， 比上一次更懂你。" }),
+  ).toBeVisible();
+  await expect(page.locator(".guide-next")).toBeEnabled();
+  await page.getByRole("button", { name: "跳过新手引导", exact: true }).click();
+  await expect(page.locator(".profile-form")).toBeVisible();
+  await page.reload();
+  await expect(page.locator(".immersive-guide")).toHaveCount(0);
+});
+
+test("home and settings preferences persist while temporary plan choices stay temporary", async ({
+  page,
+}) => {
+  await page.goto("/");
+  await skipIntro(page);
+  await page.getByRole("button", { name: "准备好了，开始训练" }).click();
+  const entry = page.getByRole("button", { name: "偏好设置", exact: true });
+  await expect(entry).toBeVisible();
+  expect((await entry.boundingBox())!.height).toBeGreaterThanOrEqual(44);
+  await entry.click();
+  await expect(
+    page.getByRole("heading", { name: "训练偏好", exact: true }),
+  ).toBeVisible();
+  await page.getByRole("button", { name: "力量提升", exact: true }).click();
+  await page
+    .getByRole("combobox", { name: "训练经验", exact: true })
+    .selectOption("规律训练");
+  await page
+    .getByRole("combobox", { name: "每周训练", exact: true })
+    .selectOption("4");
+  await page.getByRole("button", { name: "杠铃", exact: true }).click();
+  await page.getByRole("button", { name: "固定器械", exact: true }).click();
+  await page
+    .getByRole("combobox", { name: "训练节奏", exact: true })
+    .selectOption("精简");
+  await page.getByText("动作偏好或限制（选填）", { exact: true }).click();
+  await page
+    .getByLabel("动作偏好或限制", { exact: true })
+    .fill("以哑铃动作为主");
+  await page.getByRole("button", { name: "保存训练偏好", exact: true }).click();
+  await expect(
+    page
+      .getByRole("status")
+      .filter({ hasText: "训练偏好已保存，下次制定计划时生效。" }),
+  ).toBeVisible();
+  const savedProfile = (await stateOf(page)).profile;
+  expect(savedProfile).toEqual({
+    goal: "力量提升",
+    experience: "规律训练",
+    frequency: 4,
+    equipment: ["哑铃", "自重"],
+    preference: "精简",
+    limits: "以哑铃动作为主",
+  });
+  await page.reload();
+  await page.getByRole("button", { name: "设置", exact: true }).click();
+  await expect(
+    page.getByRole("combobox", { name: "每周训练", exact: true }),
+  ).toHaveValue("4");
+  await expect(
+    page.getByRole("combobox", { name: "训练经验", exact: true }),
+  ).toHaveValue("规律训练");
+  await expect(
+    page.getByRole("combobox", { name: "训练节奏", exact: true }),
+  ).toHaveValue("精简");
+  await expect(
+    page.getByRole("button", { name: "杠铃", exact: true }),
+  ).toHaveAttribute("aria-pressed", "false");
+  await page.getByRole("button", { name: "训练", exact: true }).click();
+  await openChest(page);
+  await expect(
+    page.getByLabel("哑铃卧推 第1组次数", { exact: true }),
+  ).toHaveValue("5");
+  await expect(
+    page.locator(".plan-exercise").first().locator(".plan-set"),
+  ).toHaveCount(2);
+  await page.getByLabel("今天准备练多久？").selectOption("20");
+  await page.getByRole("button", { name: "肩部", exact: true }).click();
+  await page.getByRole("checkbox", { name: "轻量恢复训练" }).check();
+  expect((await stateOf(page)).profile).toEqual(savedProfile);
+  expect((await stateOf(page)).sessions).toEqual([]);
+  await page.getByRole("button", { name: "返回", exact: true }).click();
+  await page.getByRole("button", { name: "设置", exact: true }).click();
+  await page.screenshot({
+    path: ".impeccable/review/v112/settings.png",
+    fullPage: true,
+  });
+});
+
+test("existing profile bypasses guidance; settings and guide replay preserve all session facts", async ({
+  page,
+}) => {
+  const initial = previousData();
+  await installExistingData(page, initial);
+  await expect(
+    page.getByRole("button", { name: "继续未完成训练", exact: true }),
+  ).toBeVisible();
+  await expect(page.locator(".immersive-guide,.profile-form")).toHaveCount(0);
+  expect(await stateOf(page)).toEqual(initial);
+  await page.getByRole("button", { name: "设置", exact: true }).click();
+  await expect(
+    page.getByRole("combobox", { name: "每周训练", exact: true }),
+  ).toHaveValue("3");
+  await page
+    .getByRole("combobox", { name: "每周训练", exact: true })
+    .selectOption("4");
+  await page.getByRole("button", { name: "保存训练偏好", exact: true }).click();
+  await saved(page);
+  expect((await stateOf(page)).sessions).toEqual(initial.sessions);
+  await page.getByText("使用指南", { exact: true }).click();
+  await expect(
+    page.getByRole("heading", { name: "如何调整长期训练偏好" }),
+  ).toBeVisible();
+  const before = await stateOf(page);
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  await page
+    .getByRole("button", { name: "重新查看新手引导", exact: true })
+    .click();
+  await expect(
+    page.locator("header,nav,.profile-form,.data-tools"),
+  ).toHaveCount(0);
+  await advanceGuide(page);
+  await advanceGuide(page);
+  await advanceGuide(page);
+  await expect(
+    page.getByRole("heading", { name: "训练偏好", exact: true }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("combobox", { name: "每周训练", exact: true }),
+  ).toHaveValue("4");
+  expect(await stateOf(page)).toEqual(before);
+  await page.getByText("使用指南", { exact: true }).click();
+  await page
+    .getByRole("button", { name: "重新查看新手引导", exact: true })
+    .click();
+  await page.getByRole("button", { name: "跳过新手引导", exact: true }).click();
+  await expect(
+    page.getByRole("heading", { name: "训练偏好", exact: true }),
+  ).toBeVisible();
+  expect(await stateOf(page)).toEqual(before);
+  await page.reload();
+  await expect(page.locator(".immersive-guide")).toHaveCount(0);
+  await page
+    .getByRole("button", { name: "继续未完成训练", exact: true })
+    .click();
+  await expect(
+    page.getByRole("heading", { name: "如何记录一组训练？" }),
+  ).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "完成第 2 组" })).toBeVisible();
+  expect((await stateOf(page)).sessions).toEqual(initial.sessions);
+});
+
+test("first workout hint is dismissible, appears only once and never writes training facts", async ({
+  page,
+}) => {
+  await page.goto("/");
+  await skipIntro(page);
+  await page
+    .getByRole("combobox", { name: "训练经验", exact: true })
+    .selectOption("刚开始");
+  await page.getByRole("button", { name: "准备好了，开始训练" }).click();
+  await page.getByRole("button", { name: "开始训练", exact: true }).click();
+  await page.getByLabel("杠铃卧推 第1组重量").fill("20");
+  await page.getByRole("button", { name: "开始记录" }).click();
+  const hint = page.getByRole("region", { name: "如何记录一组训练？" });
+  await expect(hint).toBeVisible();
+  await expect(hint).toContainText("第一次训练，先选择能够稳定控制的重量。");
+  const before = await stateOf(page);
+  await page.getByRole("button", { name: "知道了", exact: true }).click();
+  await expect(hint).toHaveCount(0);
+  expect(await stateOf(page)).toEqual(before);
+  await page.getByRole("button", { name: "完成第 1 组" }).click();
+  await expect(page.getByRole("timer")).toBeVisible();
+  await page.getByRole("button", { name: "返回", exact: true }).click();
+  await page
+    .getByRole("button", { name: "继续未完成训练", exact: true })
+    .click();
+  await expect(hint).toHaveCount(0);
+  await page.reload();
+  await page
+    .getByRole("button", { name: "继续未完成训练", exact: true })
+    .click();
+  await expect(hint).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "完成第 2 组" })).toBeVisible();
 });

@@ -58,7 +58,14 @@ import {
   recommend,
   reviewExercise,
 } from "./coach";
-import { backup, mergeState, mutateState, readState } from "./storage";
+import {
+  backup,
+  mergeState,
+  mutateState,
+  readState,
+  readGuidance,
+  saveGuidance,
+} from "./storage";
 import { parseImport, type ImportPreview } from "./importer";
 type Page = "home" | "plan" | "workout" | "history" | "settings" | "summary";
 const date = (s: string, full = false) =>
@@ -145,7 +152,9 @@ export function App() {
     [minutes, setMinutes] = useState(45),
     [recovery, setRecovery] = useState(false),
     [draft, setDraft] = useState<Exercise[]>([]),
-    [focus, setFocus] = useState(0);
+    [focus, setFocus] = useState(0),
+    [guideStep, setGuideStep] = useState(() => readGuidance().introStep),
+    [replayGuide, setReplayGuide] = useState(false);
   const running = state.sessions.find((s) => s.status === "active"),
     previous = finished(state.sessions).at(-1),
     recommendation = recommend(state.sessions);
@@ -307,6 +316,30 @@ export function App() {
         <p>正在打开训练档案…</p>
       </div>
     );
+  // A real profile always wins over presentation flags, including after import.
+  if (replayGuide || (!state.profile && !error && guideStep < 3))
+    return (
+      <ImmersiveOnboarding
+        initialStep={replayGuide ? 0 : guideStep}
+        replay={replayGuide}
+        onStep={(step) => {
+          if (!replayGuide) {
+            saveGuidance({ introStep: step });
+            setGuideStep(step);
+          }
+        }}
+        onComplete={() => {
+          if (replayGuide) {
+            setReplayGuide(false);
+            go("settings");
+          } else {
+            saveGuidance({ introStep: 3 });
+            setGuideStep(3);
+            window.scrollTo(0, 0);
+          }
+        }}
+      />
+    );
   return (
     <div className={`shell${page === "workout" ? " workout-shell" : ""}`}>
       <header className="topbar">
@@ -442,7 +475,12 @@ export function App() {
               <section className="training-hero">
                 <div className="hero-top">
                   <span>今日建议</span>
-                  <span>可调整</span>
+                  <button
+                    className="hero-preferences"
+                    onClick={() => go("settings")}
+                  >
+                    偏好设置
+                  </button>
                 </div>
                 <h2>
                   {recommendation.theme}
@@ -654,41 +692,49 @@ export function App() {
             </div>
           </>
         ) : page === "workout" && running ? (
-          <Workout
-            session={running}
-            sessions={state.sessions}
-            busy={busy}
-            focus={focus}
-            setFocus={setFocus}
-            update={(fn) => updateSession(running.id, fn)}
-            onFinish={async (note) => {
-              if (
-                await updateSession(running.id, (s) =>
-                  finishSession({ ...s, note }),
-                )
-              ) {
-                setSelected(running.id);
-                goDetail();
-              }
-            }}
-            onDiscard={async () => {
-              if (
-                await updateSession(running.id, (s) => ({
-                  ...s,
-                  status: "discarded",
-                  endedAt: new Date().toISOString(),
-                  restUntil: null,
-                }))
-              ) {
-                go("home");
-                setNotice(
-                  "本节已放弃，不计入训练历史和建议。已记录内容保留在数据导出中。",
-                );
-              }
-            }}
-            back={() => go("home")}
-            equipment={state.profile.equipment}
-          />
+          <>
+            <WorkoutIntroduction
+              beginner={state.profile.experience === "刚开始"}
+              hasRecordedTraining={state.sessions.some(
+                (s) => s.source === "app" && stats(s).sets > 0,
+              )}
+            />
+            <Workout
+              session={running}
+              sessions={state.sessions}
+              busy={busy}
+              focus={focus}
+              setFocus={setFocus}
+              update={(fn) => updateSession(running.id, fn)}
+              onFinish={async (note) => {
+                if (
+                  await updateSession(running.id, (s) =>
+                    finishSession({ ...s, note }),
+                  )
+                ) {
+                  setSelected(running.id);
+                  goDetail();
+                }
+              }}
+              onDiscard={async () => {
+                if (
+                  await updateSession(running.id, (s) => ({
+                    ...s,
+                    status: "discarded",
+                    endedAt: new Date().toISOString(),
+                    restUntil: null,
+                  }))
+                ) {
+                  go("home");
+                  setNotice(
+                    "本节已放弃，不计入训练历史和建议。已记录内容保留在数据导出中。",
+                  );
+                }
+              }}
+              back={() => go("home")}
+              equipment={state.profile.equipment}
+            />
+          </>
         ) : page === "history" ? (
           <HistoryView sessions={state.sessions} onSelect={showSession} />
         ) : page === "summary" && session ? (
@@ -699,13 +745,13 @@ export function App() {
           />
         ) : page === "settings" ? (
           <>
-            <PageTitle title="我的训练档案" />
+            <PageTitle title="训练偏好" />
             <ProfileForm
               profile={state.profile}
               busy={busy}
               onSave={async (p) => {
                 if (await save((s) => ({ ...s, profile: p })))
-                  setNotice("训练偏好已保存，下一节计划将使用这些设置。");
+                  setNotice("训练偏好已保存，下次制定计划时生效。");
               }}
             />
             <DataTools
@@ -736,6 +782,34 @@ export function App() {
                 × 次数计算，哑铃为单只口径，自重不估算体重。
               </p>
             </section>
+            <details className="usage-guide">
+              <summary>
+                使用指南
+                <ChevronDown size={16} />
+              </summary>
+              <h3>如何开始训练</h3>
+              <p>
+                在首页点击「开始训练」，确认今天的动作和组数，再点击「开始记录」。有未完成训练时，先选择继续。
+              </p>
+              <h3>如何记录重量和次数</h3>
+              <p>
+                完成动作后，确认本组重量和次数，点击完成。记录会自动保存；还有待做组时会开始休息计时。
+              </p>
+              <h3>如何修改当天训练计划</h3>
+              <p>
+                在「今天，怎么练」调整部位、时间、轻量恢复或动作。这些调整只影响本次计划。
+              </p>
+              <h3>如何调整长期训练偏好</h3>
+              <p>
+                从首页「偏好设置」或底部「设置」进入，修改后点击「保存训练偏好」，下次制定计划时生效。
+              </p>
+              <button
+                className="text-button"
+                onClick={() => setReplayGuide(true)}
+              >
+                重新查看新手引导
+              </button>
+            </details>
           </>
         ) : (
           <div className="empty">
@@ -750,7 +824,7 @@ export function App() {
             [
               { p: "home", name: "训练", icon: Home },
               { p: "history", name: "记录", icon: BarChart3 },
-              { p: "settings", name: "我的", icon: Settings2 },
+              { p: "settings", name: "设置", icon: Settings2 },
             ] as const
           ).map(({ p, name, icon: Icon }) => (
             <button
@@ -771,6 +845,165 @@ export function App() {
     </div>
   );
 }
+function ImmersiveOnboarding({
+  initialStep,
+  replay,
+  onStep,
+  onComplete,
+}: {
+  initialStep: number;
+  replay: boolean;
+  onStep: (step: number) => void;
+  onComplete: () => void;
+}) {
+  const [step, setStep] = useState(Math.min(initialStep, 2));
+  const [leaving, setLeaving] = useState(false);
+  const [transitioning, setTransitioning] = useState(false);
+  const locked = useRef(false);
+  const timers = useRef<ReturnType<typeof setTimeout>[]>([]);
+  useEffect(() => () => timers.current.forEach(clearTimeout), []);
+  const screens = [
+    {
+      theme: "ink",
+      title: ["每一次训练，", "都不该从零开始。"],
+      caption: ["记住你的重量、次数与每一次进步。"],
+    },
+    {
+      theme: "paper",
+      title: ["练完一组，", "点一下就够。"],
+      caption: ["记录自动保存，", "休息计时随即开始。"],
+    },
+    {
+      theme: "green",
+      title: ["下一次，", "比上一次更懂你。"],
+      caption: ["根据真实训练记录，", "持续调整训练建议。"],
+    },
+  ];
+  const screen = screens[step];
+  function advance() {
+    // Lock synchronously: even taps in the same event turn cannot skip a screen.
+    if (locked.current) return;
+    locked.current = true;
+    setTransitioning(true);
+    const reduced = matchMedia("(prefers-reduced-motion: reduce)").matches;
+    if (step === 2) {
+      if (reduced) onComplete();
+      else {
+        setLeaving(true);
+        timers.current.push(setTimeout(onComplete, 400));
+      }
+      return;
+    }
+    const showNext = () => {
+      setStep(step + 1);
+      onStep(step + 1);
+      setLeaving(false);
+    };
+    if (reduced) showNext();
+    else {
+      setLeaving(true);
+      timers.current.push(setTimeout(showNext, 160));
+    }
+    timers.current.push(
+      setTimeout(
+        () => {
+          locked.current = false;
+          setTransitioning(false);
+          timers.current = [];
+        },
+        reduced ? 180 : 400,
+      ),
+    );
+  }
+  return (
+    <section
+      className={`immersive-guide guide-${screen.theme}`}
+      aria-label="新手引导"
+      data-transitioning={transitioning}
+    >
+      <div
+        className={`guide-copy${leaving ? " leaving" : ""}`}
+        aria-live="polite"
+        aria-atomic="true"
+      >
+        <h1 id="guide-title">
+          {screen.title.map((line) => (
+            <span key={line}>{line}</span>
+          ))}
+        </h1>
+        <p id="guide-caption">
+          {screen.caption.map((line) => (
+            <span key={line}>{line}</span>
+          ))}
+        </p>
+      </div>
+      <div className="guide-footer">
+        <p id="guide-count">{String(step + 1).padStart(2, "0")} / 03</p>
+        <p>
+          {step < 2
+            ? "点击任意位置继续"
+            : replay
+              ? "点击任意位置返回设置"
+              : "点击任意位置开始设置"}
+        </p>
+      </div>
+      <button
+        type="button"
+        className="guide-next"
+        disabled={transitioning}
+        aria-label={step < 2 ? "下一屏" : replay ? "返回设置" : "开始设置"}
+        aria-describedby="guide-title guide-caption guide-count"
+        onClick={advance}
+      />
+      <button
+        type="button"
+        className="guide-skip"
+        aria-label="跳过新手引导"
+        disabled={transitioning}
+        onClick={() => {
+          if (!locked.current) {
+            locked.current = true;
+            onComplete();
+          }
+        }}
+      >
+        跳过
+      </button>
+    </section>
+  );
+}
+function WorkoutIntroduction({
+  beginner,
+  hasRecordedTraining,
+}: {
+  beginner: boolean;
+  hasRecordedTraining: boolean;
+}) {
+  const [visible, setVisible] = useState(
+    () => !hasRecordedTraining && !readGuidance().workoutHintSeen,
+  );
+  useEffect(() => {
+    if (visible) saveGuidance({ workoutHintSeen: true });
+  }, [visible]);
+  if (!visible) return null;
+  return (
+    <section
+      className="workout-introduction"
+      aria-labelledby="workout-help-title"
+    >
+      <div className="section-heading">
+        <h2 id="workout-help-title">如何记录一组训练？</h2>
+        <button className="text-button" onClick={() => setVisible(false)}>
+          知道了
+        </button>
+      </div>
+      <p>
+        完成动作后，确认重量和次数，点击完成本组，系统会自动保存并开始休息计时。
+      </p>
+      {beginner && <p>第一次训练，先选择能够稳定控制的重量。</p>}
+    </section>
+  );
+}
 function Onboarding({
   busy,
   onSave,
@@ -783,17 +1016,8 @@ function Onboarding({
   return (
     <>
       <section className="welcome">
-        <div className="welcome-rule" />
-        <h1>
-          你的训练，
-          <br />
-          值得被记住。
-        </h1>
-        <p>
-          花一点时间认识你。以后每一次训练，
-          <br />
-          都从上一次的真实表现开始。
-        </p>
+        <h1>先了解一下你的训练习惯。</h1>
+        <p>这些设置以后都可以修改。</p>
       </section>
       <ProfileForm busy={busy} onSave={onSave} />
       <details className="import-existing">

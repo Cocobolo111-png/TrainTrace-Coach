@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach } from "vitest";
+import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import "fake-indexeddb/auto";
 import {
   catalog,
@@ -18,7 +18,14 @@ import {
   type Session,
   type Profile,
 } from "../src/model";
-import { backup, mergeState, mutateState, readState } from "../src/storage";
+import {
+  backup,
+  mergeState,
+  mutateState,
+  readState,
+  readGuidance,
+  saveGuidance,
+} from "../src/storage";
 import { parseImport, parseMarkdown } from "../src/importer";
 const profile: Profile = {
   goal: "增肌",
@@ -262,5 +269,54 @@ describe("IndexedDB transaction durability", () => {
     ).rejects.toThrow();
     expect((await readState()).profile).toEqual(profile);
     expect((await readState()).sessions).toHaveLength(0);
+  });
+});
+
+describe("presentation guidance preferences", () => {
+  let values: Map<string, string>;
+  beforeEach(() => {
+    values = new Map();
+    vi.stubGlobal("localStorage", {
+      getItem: (key: string) => values.get(key) ?? null,
+      setItem: (key: string, value: string) => values.set(key, value),
+    });
+  });
+  afterEach(() => vi.unstubAllGlobals());
+  it("persists the current intro screen and preserves the workout hint acknowledgement", () => {
+    expect(readGuidance()).toEqual({ introStep: 0, workoutHintSeen: false });
+    saveGuidance({ workoutHintSeen: true });
+    for (const introStep of [1, 2, 3]) {
+      saveGuidance({ introStep });
+      expect(readGuidance()).toEqual({ introStep, workoutHintSeen: true });
+    }
+  });
+  it("ignores invalid presentation values rather than treating them as a profile", () => {
+    values.set("traintrace-guidance", "broken");
+    expect(readGuidance().introStep).toBe(0);
+    values.set(
+      "traintrace-guidance",
+      JSON.stringify({
+        introStep: 9,
+        workoutHintSeen: "yes",
+        profile: { goal: "增肌" },
+      }),
+    );
+    expect(readGuidance()).toEqual({ introStep: 0, workoutHintSeen: false });
+  });
+  it("cannot mutate training state and does not block when localStorage is unavailable", async () => {
+    const before = await readState();
+    saveGuidance({ introStep: 3, workoutHintSeen: true });
+    expect(await readState()).toEqual(before);
+    vi.stubGlobal("localStorage", {
+      getItem: () => {
+        throw Error("blocked");
+      },
+      setItem: () => {
+        throw Error("blocked");
+      },
+    });
+    expect(readGuidance()).toEqual({ introStep: 0, workoutHintSeen: false });
+    expect(() => saveGuidance({ introStep: 1 })).not.toThrow();
+    expect(await readState()).toEqual(before);
   });
 });

@@ -1,5 +1,34 @@
 import { emptyState, type State, validateState } from "./model";
 const DB = "traintrace-v1";
+const GUIDANCE_KEY = "traintrace-guidance";
+type Guidance = { introStep: number; workoutHintSeen: boolean };
+// These are presentation-only preferences, never a source of training facts.
+export function readGuidance(): Guidance {
+  try {
+    const value = JSON.parse(localStorage.getItem(GUIDANCE_KEY) ?? "null");
+    return {
+      introStep:
+        Number.isInteger(value?.introStep) &&
+        value.introStep >= 0 &&
+        value.introStep <= 3
+          ? value.introStep
+          : 0,
+      workoutHintSeen: value?.workoutHintSeen === true,
+    };
+  } catch {
+    return { introStep: 0, workoutHintSeen: false };
+  }
+}
+export function saveGuidance(patch: Partial<Guidance>) {
+  try {
+    localStorage.setItem(
+      GUIDANCE_KEY,
+      JSON.stringify({ ...readGuidance(), ...patch }),
+    );
+  } catch {
+    /* Browser storage restrictions must not block training. */
+  }
+}
 let connection: Promise<IDBDatabase> | undefined;
 function db() {
   if (!connection)
