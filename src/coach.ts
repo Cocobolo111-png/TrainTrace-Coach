@@ -6,8 +6,8 @@ import {
   type Theme,
   completed,
   uid,
-  volume,
 } from "./model";
+import { evaluateTraining } from "./feedback";
 export type Movement = {
   id: string;
   name: string;
@@ -243,6 +243,69 @@ export const catalog: Movement[] = [
     pattern: "肩部孤立",
     tip: "轻重量控制，不甩动。",
   },
+  {
+    id: "pullup",
+    name: "引体向上",
+    theme: "背部",
+    equipment: "自重",
+    basis: "自重",
+    pattern: "垂直拉",
+    tip: "按相同器械和动作范围记录。",
+  },
+  {
+    id: "dip",
+    name: "双杠臂屈伸",
+    theme: "胸部",
+    equipment: "自重",
+    basis: "自重",
+    pattern: "水平推",
+    tip: "按相同器械和动作范围记录。",
+  },
+  {
+    id: "single-pulldown",
+    name: "单臂下拉",
+    theme: "背部",
+    equipment: "固定器械",
+    basis: "器械标重",
+    pattern: "垂直拉",
+    tip: "按相同器械和动作范围记录。",
+  },
+  {
+    id: "wide-row",
+    name: "宽距坐姿划船",
+    theme: "背部",
+    equipment: "固定器械",
+    basis: "器械标重",
+    pattern: "水平拉",
+    tip: "按相同器械和动作范围记录。",
+  },
+  {
+    id: "facepull",
+    name: "面拉",
+    theme: "背部",
+    equipment: "固定器械",
+    basis: "器械标重",
+    pattern: "肩胛控制",
+    tip: "按相同器械和动作范围记录。",
+  },
+  {
+    id: "reverse-fly",
+    name: "反向飞鸟机",
+    theme: "肩部",
+    equipment: "固定器械",
+    basis: "器械标重",
+    pattern: "肩部孤立",
+    tip: "按相同器械和动作范围记录。",
+  },
+  {
+    id: "hanging-leg",
+    name: "垂悬举腿",
+    theme: "全身",
+    equipment: "自重",
+    basis: "自重",
+    pattern: "核心",
+    tip: "按相同器械和动作范围记录。",
+  },
 ];
 export const finished = (sessions: Session[]) =>
   sessions
@@ -253,9 +316,19 @@ export function lastExercise(
   catalogId: string,
 ): { exercise: Exercise; session: Session } | undefined {
   for (const session of finished(sessions).reverse()) {
-    const exercise = session.exercises.find(
-      (e) => e.catalogId === catalogId && completed(e).length,
-    );
+    const exercise = session.exercises.find((e) => {
+      const movement = catalog.find((m) => m.id === catalogId);
+      return (
+        e.catalogId === catalogId &&
+        completed(e).length &&
+        !!movement &&
+        e.name === movement.name &&
+        e.equipment === movement.equipment &&
+        e.basis === movement.basis &&
+        !e.variant &&
+        !e.equipmentId
+      );
+    });
     if (exercise) return { exercise, session };
   }
 }
@@ -345,6 +418,7 @@ export function makePlan(
   theme: Theme,
   minutes: number,
   recovery: boolean,
+  defaultRest?: number | null,
 ): Exercise[] {
   const available = catalog.filter((m) =>
     profile.equipment.includes(m.equipment),
@@ -374,6 +448,7 @@ export function makePlan(
     )
     .map((e) => ({
       ...e,
+      rest: defaultRest ?? e.rest,
       sets: e.sets.map((t) => ({
         ...t,
         reps: lastExercise(sessions, e.catalogId)
@@ -391,45 +466,11 @@ export function reviewExercise(
   sessions: Session[],
   current: Session,
 ): string {
-  const history = sessions.filter(
-    (s) =>
-      s.id !== current.id &&
-      Date.parse(s.startedAt) < Date.parse(current.startedAt),
+  if (!completed(e).length) return "";
+  const result = evaluateTraining(current, sessions, null).exercises.find(
+    (x) => x.exerciseId === e.id,
   );
-  const previous = lastExercise(history, e.catalogId),
-    a = completed(e);
-  if (!a.length) return "";
-  if (!previous)
-    return `${e.name}：建立训练基线。下次先尝试稳定重复本次实际表现。`;
-  const old = completed(previous.exercise);
-  if (
-    e.basis !== previous.exercise.basis ||
-    e.equipment !== previous.exercise.equipment
-  )
-    return `${e.name}：器械或计重方式不同，本次另建基线。`;
-  const sameLoads =
-    a.length === old.length && a.every((s, i) => s.weight === old[i].weight);
-  const reps =
-    a.reduce((n, s) => n + s.reps, 0) - old.reduce((n, s) => n + s.reps, 0);
-  const delta = Math.round((volume(e) - volume(previous.exercise)) * 10) / 10;
-  const restEqual = e.rest === previous.exercise.rest;
-  let result = sameLoads
-    ? reps > 0
-      ? `相同组数与重量，多完成 ${reps} 次。`
-      : reps < 0
-        ? `相同组数与重量，少完成 ${-reps} 次。`
-        : "重量、组数和总次数与上次相同。"
-    : `计重工作量比上次${delta >= 0 ? "增加" : "减少"} ${Math.abs(delta)} kg·次；组数或重量有变化。`;
-  const currentRpe = a.at(-1)?.rpe,
-    oldRpe = old.at(-1)?.rpe;
-  if (
-    sameLoads &&
-    reps === 0 &&
-    currentRpe !== undefined &&
-    oldRpe !== undefined &&
-    currentRpe < oldRpe
-  )
-    result += " 末组 RPE 降低，主观余力有所增加。";
-  if (!restEqual) result += " 计划休息有变化，仅作描述性比较。";
-  return `${e.name}：${result} ${a.at(-1)?.feeling === "很吃力" || (currentRpe ?? 0) >= 9 ? "下次可先保持或减少次数，以动作稳定为先。" : "下次可先保持重量，争取稳定完成；暂不自动加重。"}`;
+  return result
+    ? `${result.conclusion} ${result.evidence} ${result.action}`
+    : "";
 }

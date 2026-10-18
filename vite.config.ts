@@ -3,11 +3,14 @@ import react from "@vitejs/plugin-react";
 import { VitePWA } from "vite-plugin-pwa";
 export default defineConfig({
   base: "./",
+  server: {
+    proxy: { "/api/training-analysis": "http://127.0.0.1:8787" },
+  },
   plugins: [
     react(),
     VitePWA({
       registerType: "prompt",
-      injectRegister: "auto",
+      injectRegister: null,
       includeAssets: [
         "icon.svg",
         "icon-192.png",

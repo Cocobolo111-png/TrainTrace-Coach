@@ -40,9 +40,13 @@ import {
   type Theme,
   type TrainingSet,
   completeSet,
+  changeRestDuration,
   completed,
   emptyState,
   finishSession,
+  pauseSession,
+  resumeSession,
+  trainingSeconds,
   gears,
   stats,
   themes,
@@ -56,7 +60,6 @@ import {
   makeExercise,
   makePlan,
   recommend,
-  reviewExercise,
 } from "./coach";
 import {
   backup,
@@ -67,6 +70,11 @@ import {
   saveGuidance,
 } from "./storage";
 import { parseImport, type ImportPreview } from "./importer";
+import { FeedbackCard } from "./FeedbackCard";
+import { unlockRestAudio, playRestCue } from "./restCues";
+import { movementIdentity, sameMovement } from "./feedback";
+import { localAnalysisEnabled } from "./analysis";
+import { useRegisterSW } from "virtual:pwa-register/react";
 type Page = "home" | "plan" | "workout" | "history" | "settings" | "summary";
 const date = (s: string, full = false) =>
   new Date(s).toLocaleDateString(
@@ -140,6 +148,10 @@ function SetLine({ e }: { e: Exercise }) {
   );
 }
 export function App() {
+  const {
+    needRefresh: [needRefresh, setNeedRefresh],
+    updateServiceWorker,
+  } = useRegisterSW({ immediate: true });
   const [state, setState] = useState<State>(emptyState),
     [ready, setReady] = useState(false),
     [error, setError] = useState(""),
@@ -260,6 +272,7 @@ export function App() {
         t,
         minutes,
         (recommendation.gap ?? 0) >= 14 || state.profile?.preference === "保守",
+        readGuidance().defaultRest,
       ),
     );
     setPage("plan");
@@ -269,7 +282,16 @@ export function App() {
     setTheme(t);
     setMinutes(m);
     setRecovery(r);
-    setDraft(makePlan(state.profile!, state.sessions, t, m, r));
+    setDraft(
+      makePlan(
+        state.profile!,
+        state.sessions,
+        t,
+        m,
+        r,
+        readGuidance().defaultRest,
+      ),
+    );
   }
   async function start() {
     const session: Session = {
@@ -719,7 +741,7 @@ export function App() {
               onDiscard={async () => {
                 if (
                   await updateSession(running.id, (s) => ({
-                    ...s,
+                    ...resumeSession(s),
                     status: "discarded",
                     endedAt: new Date().toISOString(),
                     restUntil: null,
@@ -739,6 +761,8 @@ export function App() {
           <HistoryView sessions={state.sessions} onSelect={showSession} />
         ) : page === "summary" && session ? (
           <Summary
+            key={session.id}
+            profile={state.profile}
             session={session}
             sessions={state.sessions}
             back={() => go("history")}
@@ -754,34 +778,41 @@ export function App() {
                   setNotice("训练偏好已保存，下次制定计划时生效。");
               }}
             />
-            <DataTools
-              state={state}
-              save={save}
-              busy={busy}
-              notify={setNotice}
-            />
-            <section className="settings-copy">
-              <h2>训练是主角，AI 是辅助。</h2>
+            <ReminderPreferences />
+            <details className="settings-data">
+              <summary>
+                数据管理
+                <ChevronDown size={16} />
+              </summary>
+              <p className="helper">备份记录、换设备，或导入以前的训练数据。</p>
+              <DataTools
+                state={state}
+                save={save}
+                busy={busy}
+                notify={setNotice}
+              />
+            </details>
+            <details className="settings-copy">
+              <summary>
+                关于与隐私
+                <ChevronDown size={16} />
+              </summary>
+              <p>TrainTrace V1.3 · 发布候选版</p>
               <p>
-                V1
-                由本地可解释规则生成候选计划和复盘，没有调用大模型。训练记录只在这台设备的这个浏览器中保存，无账号、无云端同步。
+                记录仅保存在当前浏览器的本站点中，不会同步到其他设备。清理浏览器数据或更换设备前，请先在「数据管理」中导出备份。
+              </p>
+              <p>
+                {localAnalysisEnabled()
+                  ? "仅在你点击详细 AI 分析时，必要的训练记录和偏好才会发送至 DeepSeek 官方服务。"
+                  : "网页版使用本地规则反馈，不提供在线 AI 分析，也不会上传训练记录。"}
               </p>
               <h3>添加到主屏幕</h3>
               <p>
                 iPhone：Safari 分享 → 添加到主屏幕。Android：浏览器菜单 →
-                安装应用 / 添加到主屏幕。正式 HTTPS
-                地址首次加载完后，可离线记录。
+                安装应用。电脑：Chrome 或 Edge
+                菜单中选择安装此网站为应用，也可创建快捷方式。首次在线加载完成后，可离线记录。
               </p>
-              <p>
-                浏览器清理、卸载或设备丢失可能移除本地数据。请定期导出
-                JSON；换设备时在手机上直接导入。
-              </p>
-              <h3>持续使用提醒</h3>
-              <p>
-                更换器械型号或动作版本时，请勿将配重数字直接比较；可先将新动作作为独立基线。训练量按显示重量
-                × 次数计算，哑铃为单只口径，自重不估算体重。
-              </p>
-            </section>
+            </details>
             <details className="usage-guide">
               <summary>
                 使用指南
@@ -839,10 +870,218 @@ export function App() {
           ))}
         </nav>
       )}
+      {needRefresh && (
+        <div className="notice" role="status">
+          <span>新版本已准备好，训练结束后可刷新更新，已保存记录会保留。</span>
+          <button
+            className="text-button"
+            disabled={busy || !!running}
+            onClick={() => void updateServiceWorker(true)}
+          >
+            刷新使用新版本
+          </button>
+          <button className="text-button" onClick={() => setNeedRefresh(false)}>
+            稍后更新
+          </button>
+        </div>
+      )}
       <div className="save-state" role="status">
         {busy ? "正在保存…" : state.revision > 0 ? "已存入此设备" : ""}
       </div>
     </div>
+  );
+}
+const restLabel = (n: number) => `${Math.floor(n / 60)} 分 ${n % 60} 秒`;
+function RestSettings({
+  value,
+  defaultOnly = false,
+  onSave,
+  onClose,
+}: {
+  value: number;
+  defaultOnly?: boolean;
+  onSave: (
+    seconds: number,
+    remember: boolean,
+  ) => boolean | void | Promise<boolean | void>;
+  onClose: () => void;
+}) {
+  const dialog = useRef<HTMLDialogElement>(null);
+  const [minutes, setMinutes] = useState(String(Math.floor(value / 60))),
+    [seconds, setSeconds] = useState(String(value % 60));
+  const [remember, setRemember] = useState(true),
+    [error, setError] = useState(""),
+    [saving, setSaving] = useState(false);
+  useEffect(() => {
+    dialog.current?.showModal();
+  }, []);
+  async function submit(event: FormEvent) {
+    event.preventDefault();
+    const m = Number(minutes),
+      sec = Number(seconds),
+      total = m * 60 + sec;
+    if (
+      minutes === "" ||
+      seconds === "" ||
+      !Number.isInteger(m) ||
+      !Number.isInteger(sec) ||
+      m < 0 ||
+      sec < 0 ||
+      sec > 59 ||
+      total < 1 ||
+      total > 3600
+    ) {
+      setError("请输入有效时间：1 秒至 60 分钟，秒数为 0–59。");
+      return;
+    }
+    setSaving(true);
+    setError("");
+    try {
+      if ((await onSave(total, defaultOnly || remember)) !== false) onClose();
+    } catch {
+      setError("休息时间未保存，请重试。");
+    } finally {
+      setSaving(false);
+    }
+  }
+  return (
+    <dialog
+      ref={dialog}
+      className="rest-settings"
+      aria-labelledby="rest-settings-title"
+      onCancel={onClose}
+    >
+      <form onSubmit={submit}>
+        <div className="section-heading">
+          <h2 id="rest-settings-title">设置休息时间</h2>
+          <button type="button" aria-label="关闭休息设置" onClick={onClose}>
+            <X size={20} />
+          </button>
+        </div>
+        <div className="rest-duration-fields">
+          <label>
+            分钟
+            <input
+              aria-label="休息分钟"
+              type="number"
+              inputMode="numeric"
+              min="0"
+              max="60"
+              step="1"
+              value={minutes}
+              onChange={(e) => setMinutes(e.target.value)}
+              autoFocus
+            />
+          </label>
+          <label>
+            秒
+            <input
+              aria-label="休息秒数"
+              type="number"
+              inputMode="numeric"
+              min="0"
+              max="59"
+              step="1"
+              value={seconds}
+              onChange={(e) => setSeconds(e.target.value)}
+            />
+          </label>
+        </div>
+        <div className="rest-presets">
+          {[90, 120, 180].map((n) => (
+            <button
+              type="button"
+              key={n}
+              onClick={() => {
+                setMinutes(String(Math.floor(n / 60)));
+                setSeconds(String(n % 60));
+              }}
+            >
+              {restLabel(n)}
+            </button>
+          ))}
+        </div>
+        {!defaultOnly && (
+          <label className="rest-remember">
+            <input
+              type="checkbox"
+              checked={remember}
+              onChange={(e) => setRemember(e.target.checked)}
+            />
+            用作以后训练的默认时长
+          </label>
+        )}
+        {!defaultOnly && (
+          <p className="helper">本轮从开始休息时计算，已过去的时间不会重置。</p>
+        )}
+        {error && <p role="alert">{error}</p>}
+        <Button type="submit" disabled={saving}>
+          {saving ? "正在保存…" : "保存休息时间"}
+        </Button>
+      </form>
+    </dialog>
+  );
+}
+function ReminderPreferences() {
+  const [preferences, setPreferences] = useState(readGuidance);
+  const [restOpen, setRestOpen] = useState(false);
+  function change(key: "sound" | "vibration", value: boolean) {
+    saveGuidance({ [key]: value });
+    setPreferences(readGuidance());
+    if (key === "sound" && value) unlockRestAudio();
+  }
+  return (
+    <section className="reminder-preferences" aria-labelledby="reminder-title">
+      <h2 id="reminder-title">休息与提示</h2>
+      <button className="rest-preference" onClick={() => setRestOpen(true)}>
+        <span>
+          默认组间休息
+          <small>
+            {preferences.defaultRest === null
+              ? "按动作推荐"
+              : restLabel(preferences.defaultRest)}
+          </small>
+        </span>
+        <ChevronRight size={18} />
+      </button>
+      {restOpen && (
+        <RestSettings
+          value={preferences.defaultRest ?? 120}
+          defaultOnly
+          onClose={() => setRestOpen(false)}
+          onSave={(seconds) => {
+            saveGuidance({ defaultRest: seconds });
+            setPreferences(readGuidance());
+            return true;
+          }}
+        />
+      )}
+      <label>
+        <span>
+          休息提示音<small>结束时双音，跳过时轻响。</small>
+        </span>
+        <input
+          type="checkbox"
+          role="switch"
+          checked={preferences.sound}
+          onChange={(e) => change("sound", e.target.checked)}
+        />
+      </label>
+      <label>
+        <span>
+          休息结束震动<small>在支持震动的设备上提醒。</small>
+        </span>
+        <input
+          type="checkbox"
+          role="switch"
+          checked={preferences.vibration}
+          onChange={(e) => change("vibration", e.target.checked)}
+        />
+      </label>
+      <p className="helper">
+        提示受设备静音、音量和浏览器权限限制，页面始终保留倒计时。
+      </p>
+    </section>
   );
 }
 function ImmersiveOnboarding({
@@ -865,17 +1104,17 @@ function ImmersiveOnboarding({
   const screens = [
     {
       theme: "ink",
-      title: ["每一次训练，", "都不该从零开始。"],
+      title: ["每一次训练，", "都不该", "从零开始。"],
       caption: ["记住你的重量、次数与每一次进步。"],
     },
     {
       theme: "paper",
-      title: ["练完一组，", "点一下就够。"],
+      title: ["练完一组，", "点一下", "就够。"],
       caption: ["记录自动保存，", "休息计时随即开始。"],
     },
     {
       theme: "green",
-      title: ["下一次，", "比上一次更懂你。"],
+      title: ["下一次，", "比上一次", "更懂你。"],
       caption: ["根据真实训练记录，", "持续调整训练建议。"],
     },
   ];
@@ -1163,7 +1402,7 @@ function ProfileForm({
       </Button>
       <p className="privacy">
         <ShieldCheck size={14} />
-        无需账号 · 数据只留在此浏览器
+        无需账号 · 默认本地保存
       </p>
     </form>
   );
@@ -1180,11 +1419,12 @@ function PlanExercise({
   index: number;
   sessions: Session[];
   equipment: Profile["equipment"];
-  onChange: (e: Exercise) => void;
+  onChange: (e: Exercise) => void | Promise<boolean>;
   busy: boolean;
 }) {
   const previous = lastExercise(sessions, e.catalogId),
-    [replace, setReplace] = useState(false);
+    [replace, setReplace] = useState(false),
+    [restOpen, setRestOpen] = useState(false);
   const replacements = catalog.filter(
     (m) =>
       m.theme === catalog.find((m) => m.id === e.catalogId)?.theme &&
@@ -1200,7 +1440,15 @@ function PlanExercise({
         <div>
           <h2>{e.name}</h2>
           <p>
-            {e.basis} · {e.sets.length} 组 · {e.rest} 秒休息
+            {e.basis} · {e.sets.length} 组 ·{" "}
+            <button
+              className="rest-inline"
+              type="button"
+              onClick={() => setRestOpen(true)}
+              disabled={busy}
+            >
+              休息 {restLabel(e.rest)}
+            </button>
           </p>
         </div>
         <button
@@ -1211,6 +1459,18 @@ function PlanExercise({
           {e.skipped ? "恢复" : "跳过"}
         </button>
       </div>
+      {restOpen && (
+        <RestSettings
+          value={e.rest}
+          onClose={() => setRestOpen(false)}
+          onSave={async (seconds, remember) => {
+            const ok = await onChange({ ...e, rest: seconds });
+            if (ok === false) return false;
+            if (remember) saveGuidance({ defaultRest: seconds });
+            return true;
+          }}
+        />
+      )}
       {!e.skipped && (
         <>
           <div className="history-reference">
@@ -1251,7 +1511,9 @@ function PlanExercise({
                     onChange({
                       ...e,
                       sets: e.sets.map((t) =>
-                        t.id === s.id ? { ...t, weight: n } : t,
+                        t.id === s.id
+                          ? { ...t, weight: n, draftEdited: true }
+                          : t,
                       ),
                     });
                 }}
@@ -1270,7 +1532,9 @@ function PlanExercise({
                     onChange({
                       ...e,
                       sets: e.sets.map((t) =>
-                        t.id === s.id ? { ...t, reps: n } : t,
+                        t.id === s.id
+                          ? { ...t, reps: n, draftEdited: true }
+                          : t,
                       ),
                     });
                 }}
@@ -1303,7 +1567,10 @@ function PlanExercise({
                   onChange={(event) => {
                     const m = catalog.find((m) => m.id === event.target.value);
                     if (m) {
-                      onChange(makeExercise(m, sessions, e.sets.length));
+                      onChange({
+                        ...makeExercise(m, sessions, e.sets.length),
+                        rest: e.rest,
+                      });
                       setReplace(false);
                     }
                   }}
@@ -1356,16 +1623,16 @@ function Workout({
     [note, setNote] = useState(session.note),
     [edit, setEdit] = useState(false),
     [feedback, setFeedback] = useState<string | null>(null),
-    [message, setMessage] = useState("");
+    [message, setMessage] = useState(""),
+    [restOpen, setRestOpen] = useState<string | null | false>(false);
   const e = session.exercises[Math.min(focus, session.exercises.length - 1)],
     nextSet = e?.sets.find((s) => !s.actual),
     activeSet = nextSet,
     previous = e ? lastExercise(sessions, e.catalogId) : undefined;
   const rest = Math.max(0, Math.ceil(((session.restUntil ?? 0) - now) / 1000)),
-    elapsed = Math.max(
-      0,
-      Math.floor((now - Date.parse(session.startedAt)) / 60000),
-    );
+    elapsed = trainingSeconds(session, now),
+    paused = !!session.timing?.pausedAt;
+
   const hasNextSet = session.exercises.some(
     (exercise) => !exercise.skipped && exercise.sets.some((set) => !set.actual),
   );
@@ -1407,12 +1674,16 @@ function Workout({
     if (end) revealEndPanel();
   }, [end]);
   useEffect(() => {
+    window.addEventListener("pointerdown", unlockRestAudio);
+    window.addEventListener("keydown", unlockRestAudio);
     const refreshClock = () => setNow(Date.now());
     const timer = setInterval(refreshClock, 500);
     document.addEventListener("visibilitychange", refreshClock);
     window.addEventListener("pageshow", refreshClock);
     return () => {
       clearInterval(timer);
+      window.removeEventListener("pointerdown", unlockRestAudio);
+      window.removeEventListener("keydown", unlockRestAudio);
       document.removeEventListener("visibilitychange", refreshClock);
       window.removeEventListener("pageshow", refreshClock);
     };
@@ -1426,7 +1697,7 @@ function Workout({
       document.visibilityState !== "visible"
     )
       return;
-    const cycle = lastCompletedSet.id;
+    const cycle = `${lastCompletedSet.id}:${session.restUntil}`;
     if (notifiedRest.current === cycle) return;
     notifiedRest.current = cycle;
     // UI-only acknowledgement survives refresh; training facts stay in IndexedDB.
@@ -1437,8 +1708,11 @@ function Workout({
     } catch {
       /* Storage restrictions must not interrupt recording. */
     }
+    // A stale deadline is a visual result, never a delayed alarm.
+    if (now - session.restUntil > 3000) return;
+    playRestCue("complete");
     try {
-      if (typeof navigator.vibrate === "function")
+      if (readGuidance().vibration && typeof navigator.vibrate === "function")
         navigator.vibrate([200, 120, 200]);
     } catch {
       /* The persistent visual notice is the fallback. */
@@ -1487,15 +1761,20 @@ function Workout({
     }
   }
   const updateExercise = (next: Exercise) =>
-    void update((s) => ({
-      ...s,
-      exercises: s.exercises.map((x) => {
-        if (x.id !== e.id) return x;
-        if (JSON.stringify(x) !== JSON.stringify(e))
-          throw Error("动作已在另一处更新，请重新打开当前动作");
-        return next;
-      }),
-    }));
+    update((s) => {
+      const changed = {
+        ...s,
+        exercises: s.exercises.map((x) => {
+          if (x.id !== e.id) return x;
+          if (JSON.stringify(x) !== JSON.stringify(e))
+            throw Error("动作已在另一处更新，请重新打开当前动作");
+          return next;
+        }),
+      };
+      return next.rest !== e.rest
+        ? changeRestDuration(changed, next.rest, e.id)
+        : changed;
+    });
   const lastSet = e?.sets.find((s) => s.id === feedback);
   return (
     <>
@@ -1503,22 +1782,41 @@ function Workout({
         title={`${session.theme}训练`}
         back={back}
         aside={
-          <span className="session-time">
+          <span className="session-time" role="timer" aria-label="训练用时">
             <Clock3 size={15} />
-            {elapsed} 分钟
+            {Math.floor(elapsed / 60)
+              .toString()
+              .padStart(2, "0")}
+            :{(elapsed % 60).toString().padStart(2, "0")}
           </span>
         }
       />
       <div className="workout-context">
         <span>
           <span className="status-dot" />
-          正在记录
+          {paused ? "计时已暂停" : "正在记录"}
         </span>
+        <button
+          className="text-button"
+          disabled={busy}
+          onClick={() =>
+            void update((s) =>
+              s.timing?.pausedAt ? resumeSession(s) : pauseSession(s),
+            )
+          }
+        >
+          {paused ? "恢复计时" : "暂停计时"}
+        </button>
         <button className="text-button" onClick={() => setEnd(!end)}>
           <Flag size={16} />
           结束训练
         </button>
       </div>
+      {paused && (
+        <p className="helper" role="status">
+          训练计时已暂停；组间休息仍继续倒计时。恢复计时后可继续记组。
+        </p>
+      )}
       {end && (
         <section
           className="end-panel"
@@ -1604,7 +1902,14 @@ function Workout({
           <div className="workout-heading">
             <div>
               <p>
-                {e.basis} · {e.rest} 秒休息
+                {e.basis} ·{" "}
+                <button
+                  className="rest-inline"
+                  disabled={busy}
+                  onClick={() => setRestOpen(e.id)}
+                >
+                  休息 {restLabel(e.rest)}
+                </button>
               </p>
               <h2>{e.name}</h2>
             </div>
@@ -1682,7 +1987,12 @@ function Workout({
                   ...e,
                   sets: [
                     ...e.sets,
-                    { ...e.sets.at(-1)!, id: uid(), actual: null },
+                    {
+                      ...e.sets.at(-1)!,
+                      id: uid(),
+                      actual: null,
+                      draftEdited: false,
+                    },
                   ],
                 })
               }
@@ -1712,31 +2022,23 @@ function Workout({
                 onChange={updateExercise}
                 busy={busy}
               />
-              <label>
-                组间休息
-                <select
-                  value={e.rest}
-                  disabled={busy}
-                  onChange={(event) =>
-                    updateExercise({ ...e, rest: +event.target.value })
-                  }
-                >
-                  {[30, 60, 90, 120, 150, 180, 240, 300].map((n) => (
-                    <option key={n} value={n}>
-                      {n} 秒
-                    </option>
-                  ))}
-                </select>
-              </label>
+              <button
+                className="text-button rest-inline"
+                disabled={busy}
+                onClick={() => setRestOpen(e.id)}
+              >
+                组间休息 · {restLabel(e.rest)}
+                <Settings2 size={16} />
+              </button>
               <Button kind="secondary" onClick={() => setEdit(false)}>
                 收起调整
               </Button>
             </div>
           )}
           {feedback && lastSet?.actual && (
-            <div className="effort">
+            <section className="effort" aria-label="本动作感受">
               <div className="section-heading">
-                <h3>最后一组，感觉如何？</h3>
+                <h3>这个动作，感觉如何？</h3>
                 <button
                   className="text-button"
                   onClick={() => setFeedback(null)}
@@ -1772,10 +2074,16 @@ function Workout({
                       }))
                     }
                   >
+                    {lastSet.actual?.feeling === feeling && <Check size={18} />}
                     {feeling}
                   </button>
                 ))}
               </div>
+              <p className="effort-saved" role="status">
+                {lastSet.actual.feeling
+                  ? `已记录：${lastSet.actual.feeling}。可以继续下个动作。`
+                  : "选填，点一下即可；也可以直接继续。"}
+              </p>
               <details>
                 <summary>
                   记录准确 RPE（选填）
@@ -1818,7 +2126,7 @@ function Workout({
                   RPE 8 约为还能做 2 次。感受与 RPE 分开保存，不做强制换算。
                 </p>
               </details>
-            </div>
+            </section>
           )}
           {activeSet && !e.skipped ? (
             <SetEditor
@@ -1828,6 +2136,7 @@ function Workout({
               index={e.sets.findIndex((t) => t.id === activeSet.id) + 1}
               total={e.sets.length}
               busy={busy}
+              paused={paused}
               resting={rest > 0}
               record={record}
               onDraft={(weight, reps) =>
@@ -1839,7 +2148,7 @@ function Workout({
                           ...x,
                           sets: x.sets.map((t) =>
                             t.id === activeSet.id && !t.actual
-                              ? { ...t, weight, reps }
+                              ? { ...t, weight, reps, draftEdited: true }
                               : t,
                           ),
                         }
@@ -1890,17 +2199,41 @@ function Workout({
           </p>
         </section>
       )}
+      {restOpen !== false && (
+        <RestSettings
+          value={
+            restOpen === null
+              ? Math.round(restDuration / 1000)
+              : (session.exercises.find((x) => x.id === restOpen)?.rest ??
+                e.rest)
+          }
+          onClose={() => setRestOpen(false)}
+          onSave={async (seconds, remember) => {
+            const ok = await update((s) =>
+              changeRestDuration(s, seconds, restOpen ?? undefined),
+            );
+            if (ok && remember) saveGuidance({ defaultRest: seconds });
+            setNow(Date.now());
+            return ok;
+          }}
+        />
+      )}
       {session.restUntil !== null && hasNextSet ? (
         rest > 0 ? (
           <div className="rest-dock" role="timer" aria-label="组间休息">
-            <div className="rest-time">
-              <span>组间休息</span>
+            <button
+              className="rest-time"
+              aria-label="调整本轮休息时间"
+              disabled={busy}
+              onClick={() => setRestOpen(null)}
+            >
+              <span>组间休息 · 点此调整</span>
               <strong>
                 {String(Math.floor(rest / 60)).padStart(2, "0")}
                 <i>:</i>
                 {String(rest % 60).padStart(2, "0")}
               </strong>
-            </div>
+            </button>
             <progress
               className="rest-progress"
               aria-label="休息剩余进度"
@@ -1924,7 +2257,10 @@ function Workout({
             <button
               aria-label="跳过休息"
               disabled={busy}
-              onClick={() => void update((s) => ({ ...s, restUntil: null }))}
+              onClick={() => {
+                playRestCue("skip");
+                void update((s) => ({ ...s, restUntil: null }));
+              }}
             >
               跳过
               <SkipForward size={18} />
@@ -1961,6 +2297,7 @@ function SetEditor({
   index,
   total,
   busy,
+  paused,
   resting,
   record,
   onDraft,
@@ -1970,6 +2307,7 @@ function SetEditor({
   index: number;
   total: number;
   busy: boolean;
+  paused: boolean;
   resting: boolean;
   record: (w: number | null, r: number) => Promise<void>;
   onDraft: (w: number | null, r: number) => void;
@@ -2026,7 +2364,7 @@ function SetEditor({
             <button
               type="button"
               aria-label="减少重量"
-              disabled={busy || basis === "自重"}
+              disabled={busy || paused || basis === "自重"}
               onClick={() => {
                 const n = String(Math.max(0, (+w || 0) - 2.5));
                 setW(n);
@@ -2044,7 +2382,7 @@ function SetEditor({
               step="any"
               placeholder="选重"
               value={w}
-              disabled={basis === "自重"}
+              disabled={paused || basis === "自重"}
               onChange={(event) => setW(event.target.value)}
               onBlur={(event) => {
                 if (!(
@@ -2057,7 +2395,7 @@ function SetEditor({
             <button
               type="button"
               aria-label="增加重量"
-              disabled={busy || basis === "自重"}
+              disabled={busy || paused || basis === "自重"}
               onClick={() => {
                 const n = String(Math.min(1000, (+w || 0) + 2.5));
                 setW(n);
@@ -2074,7 +2412,7 @@ function SetEditor({
             <button
               type="button"
               aria-label="减少次数"
-              disabled={busy}
+              disabled={busy || paused}
               onClick={() => {
                 const n = String(Math.max(1, (+r || 1) - 1));
                 setR(n);
@@ -2087,6 +2425,7 @@ function SetEditor({
               aria-label="本组次数"
               type="number"
               inputMode="numeric"
+              disabled={paused}
               min="1"
               max="200"
               value={r}
@@ -2102,7 +2441,7 @@ function SetEditor({
             <button
               type="button"
               aria-label="增加次数"
-              disabled={busy}
+              disabled={busy || paused}
               onClick={() => {
                 const n = String(Math.min(200, (+r || 0) + 1));
                 setR(n);
@@ -2119,8 +2458,12 @@ function SetEditor({
           {validation}
         </p>
       )}
-      <Button type="submit" disabled={busy}>
-        {busy ? "正在保存…" : `完成第 ${index} 组`}
+      <Button type="submit" disabled={busy || paused}>
+        {paused
+          ? "恢复计时后可记组"
+          : busy
+            ? "正在保存…"
+            : `完成第 ${index} 组`}
         <Check size={22} />
       </Button>
       <p className="helper">
@@ -2170,7 +2513,10 @@ function HistoryView({
         history.flatMap((s) =>
           s.exercises
             .filter((e) => completed(e).length)
-            .map((e) => [e.catalogId, e.name]),
+            .map((e) => [
+              movementIdentity(e),
+              [e.name, e.variant, e.equipmentId].filter(Boolean).join(" · "),
+            ]),
         ),
       ).entries(),
     ];
@@ -2178,7 +2524,7 @@ function HistoryView({
     points = history
       .flatMap((s) => {
         const e = s.exercises.find(
-          (e) => e.catalogId === movementId && completed(e).length,
+          (e) => movementIdentity(e) === movementId && completed(e).length,
         );
         return e
           ? [
@@ -2199,7 +2545,7 @@ function HistoryView({
       ? Math.max(
           ...history.flatMap((s) =>
             s.exercises
-              .filter((e) => e.catalogId === movementId)
+              .filter((e) => movementIdentity(e) === movementId)
               .flatMap((e) => completed(e).map((t) => t.weight)),
           ),
         )
@@ -2385,12 +2731,14 @@ function localDate(s: string) {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 }
 function Summary({
+  profile,
   session,
   sessions,
   back,
 }: {
   session: Session;
   sessions: Session[];
+  profile: Profile | null;
   back: () => void;
 }) {
   const info = stats(session),
@@ -2398,6 +2746,7 @@ function Summary({
   return (
     <>
       <PageTitle title="训练已保存" back={back} />
+      <FeedbackCard session={session} sessions={sessions} profile={profile} />
       <section className="summary-hero">
         <Check size={28} />
         <p>{date(session.startedAt, true)}</p>
@@ -2422,18 +2771,6 @@ function Summary({
           </div>
         </div>
       </section>
-      <div className="section-heading">
-        <h2>这一次，有什么变化</h2>
-        <span>本地规则复盘</span>
-      </div>
-      <div className="review-list">
-        {actuals.slice(0, 3).map((e) => (
-          <p key={e.id}>{reviewExercise(e, sessions, session)}</p>
-        ))}
-      </div>
-      <p className="helper">
-        比较的是已完成的工作组。次数与重量之外，休息、器械和当天状态也会影响表现，单次变化不等于长期趋势。
-      </p>
       <section className="actual-records">
         <h2>实际训练记录</h2>
         {actuals.map((e) => {
@@ -2446,9 +2783,7 @@ function Summary({
             )
             .flatMap((s) =>
               s.exercises
-                .filter(
-                  (x) => x.catalogId === e.catalogId && x.basis === e.basis,
-                )
+                .filter((x) => sameMovement(x, e))
                 .flatMap((x) => completed(x).map((t) => t.weight)),
             );
           const max = Math.max(...completed(e).map((t) => t.weight));
@@ -2456,12 +2791,17 @@ function Summary({
             <article key={e.id}>
               <div className="section-heading">
                 <h3>{e.name}</h3>
-                {previous.length > 0 && max > Math.max(...previous) && (
-                  <span className="pb">已记录重量最佳</span>
-                )}
+                {e.basis !== "自重" &&
+                  previous.length > 0 &&
+                  max > Math.max(...previous) && (
+                    <span className="pb">已记录重量最佳</span>
+                  )}
               </div>
               <p className="helper">
-                {e.basis} · 计划休息 {e.rest} 秒
+                {e.basis} ·{" "}
+                {e.restRecorded === false
+                  ? "休息未记录"
+                  : `休息 ${restLabel(e.rest)}`}
               </p>
               {completed(e).map((s, i) => (
                 <div className="actual-set" key={i}>
@@ -2476,8 +2816,16 @@ function Summary({
                   </span>
                 </div>
               ))}
+              {e.reportedRpe && (
+                <p className="volume-label">
+                  {e.reportedRpe.scope === "top-set" ? "顶组" : "动作整体"} RPE{" "}
+                  {e.reportedRpe.value}（原日志记录，未分摊至各组）
+                </p>
+              )}
               <p className="volume-label">
-                计重工作量 {fmt(volume(e))} kg·次
+                {e.basis === "自重"
+                  ? "自重工作量不估算 kg"
+                  : `计重工作量 ${fmt(volume(e))} kg·次`}
                 {e.basis === "单只哑铃"
                   ? "（单只口径）"
                   : e.basis === "自重"
@@ -2488,6 +2836,15 @@ function Summary({
           );
         })}
       </section>
+      {session.coachReference && (
+        <details className="usage-guide">
+          <summary>
+            原日志教练观察（仅供参考）
+            <ChevronDown size={16} />
+          </summary>
+          <p className="preserved-reference">{session.coachReference}</p>
+        </details>
+      )}
       <label className="session-note">
         训练后备注<p>{session.note || "本次未记录额外感受。"}</p>
       </label>

@@ -1,7 +1,13 @@
 import { emptyState, type State, validateState } from "./model";
 const DB = "traintrace-v1";
 const GUIDANCE_KEY = "traintrace-guidance";
-type Guidance = { introStep: number; workoutHintSeen: boolean };
+type Guidance = {
+  introStep: number;
+  workoutHintSeen: boolean;
+  sound: boolean;
+  vibration: boolean;
+  defaultRest: number | null;
+};
 // These are presentation-only preferences, never a source of training facts.
 export function readGuidance(): Guidance {
   try {
@@ -14,9 +20,23 @@ export function readGuidance(): Guidance {
           ? value.introStep
           : 0,
       workoutHintSeen: value?.workoutHintSeen === true,
+      sound: value?.sound !== false,
+      vibration: value?.vibration !== false,
+      defaultRest:
+        Number.isInteger(value?.defaultRest) &&
+        value.defaultRest >= 1 &&
+        value.defaultRest <= 3600
+          ? value.defaultRest
+          : null,
     };
   } catch {
-    return { introStep: 0, workoutHintSeen: false };
+    return {
+      introStep: 0,
+      workoutHintSeen: false,
+      sound: true,
+      vibration: true,
+      defaultRest: null,
+    };
   }
 }
 export function saveGuidance(patch: Partial<Guidance>) {
@@ -122,5 +142,37 @@ export function mergeState(current: State, incoming: State): State {
     ...current,
     profile: current.profile ?? incoming.profile,
     sessions,
+  });
+}
+
+// Reuse the existing store: one replaceable derived cache entry per workout.
+// Not exported or merged with source records; signature includes rules, facts and preferences.
+export async function readAnalysisCache(
+  sessionId: string,
+  signature: string,
+): Promise<unknown> {
+  const database = await db();
+  return new Promise((resolve, reject) => {
+    const r = database
+      .transaction("state")
+      .objectStore("state")
+      .get(`analysis:${sessionId}`);
+    r.onsuccess = () =>
+      resolve(r.result?.signature === signature ? r.result.value : null);
+    r.onerror = () => reject(r.error);
+  });
+}
+export async function writeAnalysisCache(
+  sessionId: string,
+  signature: string,
+  value: unknown,
+): Promise<void> {
+  const database = await db();
+  return new Promise((resolve, reject) => {
+    const tx = database.transaction("state", "readwrite");
+    tx.objectStore("state").put({ signature, value }, `analysis:${sessionId}`);
+    tx.oncomplete = () => resolve();
+    tx.onabort = () => reject(tx.error);
+    tx.onerror = () => reject(tx.error);
   });
 }

@@ -2,8 +2,12 @@ node_modules/
 dist/
 *.tsbuildinfo
 .env*
+!.env.example
 fitness-coach-data/
 *traintrace-backup*.json
 playwright-report/
 test-results/
 .impeccable/
+
+dist-server/
+dist-local/
