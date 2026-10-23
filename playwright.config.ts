@@ -17,10 +17,10 @@ export default defineConfig({
     },
   },
   projects: [
-    { name: "local", testMatch: ["**/feedback.spec.ts", "**/journey.spec.ts"] },
+    { name: "local", testMatch: ["**/feedback.spec.ts", "**/journey.spec.ts", "**/v14.spec.ts"] },
     {
       name: "public",
-      testMatch: ["**/public.spec.ts", "**/journey.spec.ts"],
+      testMatch: ["**/public.spec.ts", "**/journey.spec.ts", "**/v14.spec.ts"],
       use: { baseURL: "http://127.0.0.1:14174" },
     },
   ],

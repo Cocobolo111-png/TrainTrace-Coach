@@ -71,6 +71,7 @@ import {
 } from "./storage";
 import { parseImport, type ImportPreview } from "./importer";
 import { FeedbackCard } from "./FeedbackCard";
+import { ActionGuidance } from "./actionGuidance";
 import { unlockRestAudio, playRestCue } from "./restCues";
 import { movementIdentity, sameMovement } from "./feedback";
 import { localAnalysisEnabled } from "./analysis";
@@ -419,7 +420,13 @@ export function App() {
               save((s) => ({ ...s, profile: p })).then((ok) => {
                 if (ok) {
                   void navigator.storage?.persist?.();
-                  setPage("home");
+                  const t = recommend(state.sessions).theme;
+                  const r = (recommendation.gap ?? 0) >= 14 || p.preference === "保守";
+                  setTheme(t);
+                  setRecovery(r);
+                  setDraft(makePlan(p, state.sessions, t, minutes, r, readGuidance().defaultRest));
+                  setPage("plan");
+                  window.scrollTo(0, 0);
                 }
               })
             }
@@ -1440,7 +1447,7 @@ function PlanExercise({
         <div>
           <h2>{e.name}</h2>
           <p>
-            {e.basis} · {e.sets.length} 组 ·{" "}
+            {e.basis} · {e.sets.length} 组 × {[...new Set(e.sets.map((s) => s.reps))].join(" / ")} 次 ·{" "}
             <button
               className="rest-inline"
               type="button"
@@ -1486,6 +1493,9 @@ function PlanExercise({
               <> · 暂无记录，热身后现场选重</>
             )}
           </div>
+          <ActionGuidance exercise={e} />
+          <details className="plan-adjustments">
+            <summary>调整重量与组次<ChevronDown size={16} /></summary>
           <div className="plan-set-head">
             <span>工作组</span>
             <span>重量 kg</span>
@@ -1557,6 +1567,7 @@ function PlanExercise({
               替换动作
             </button>
           </div>
+          </details>
           {replace && (
             <div className="replacement">
               <label>
@@ -1921,6 +1932,7 @@ function Workout({
               <Settings2 size={21} />
             </button>
           </div>
+          <ActionGuidance key={e.id} exercise={e} />
           <p className="movement-tip">
             {catalog.find((m) => m.id === e.catalogId)?.tip}
           </p>

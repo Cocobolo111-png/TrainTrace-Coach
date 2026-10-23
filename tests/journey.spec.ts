@@ -15,6 +15,14 @@ async function skipIntro(page: Page) {
     page.getByRole("heading", { name: "先了解一下你的训练习惯。" }),
   ).toBeVisible();
 }
+async function setupAndReturnHome(page: Page) {
+  await page.getByRole("button", { name: "准备好了，开始训练" }).click();
+  await expect(page.getByRole("button", { name: "开始记录", exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "返回", exact: true }).click();
+}
+async function openAdjustments(page: Page) {
+  for (const summary of await page.locator(".plan-adjustments:not([open]) > summary").all()) await summary.click();
+}
 async function saved(page: Page) {
   await expect(
     page.getByRole("status").filter({ hasText: "正在保存" }),
@@ -60,7 +68,7 @@ test("mobile gym journey: setup, history prefill, recovery, review, next workout
   await expect(
     page.getByRole("heading", { name: "先了解一下你的训练习惯。" }),
   ).toBeVisible();
-  await page.getByRole("button", { name: "准备好了，开始训练" }).click();
+  await setupAndReturnHome(page);
   await saved(page);
   await page.getByRole("button", { name: "设置", exact: true }).click();
   // Synthetic historical facts are imported through the same reviewable UI users use.
@@ -246,10 +254,11 @@ test("first record has no invented load, mobile controls can add/remove/skip and
   );
   await page.goto("/");
   await skipIntro(page);
-  await page.getByRole("button", { name: "准备好了，开始训练" }).click();
+  await setupAndReturnHome(page);
   await saved(page);
   await page.getByRole("button", { name: "开始训练", exact: true }).click();
   await expect(page.getByLabel("杠铃卧推 第1组重量")).toHaveValue("");
+  await openAdjustments(page);
   await page.getByLabel("杠铃卧推 第1组重量").fill("20");
   await page.getByRole("button", { name: "开始记录" }).click();
   await saved(page);
@@ -271,7 +280,7 @@ test("first record has no invented load, mobile controls can add/remove/skip and
 async function freshChestPlan(page: Page) {
   await page.goto("/");
   await skipIntro(page);
-  await page.getByRole("button", { name: "准备好了，开始训练" }).click();
+  await setupAndReturnHome(page);
   await page.getByRole("button", { name: "开始训练", exact: true }).click();
 }
 async function twoSetWorkout(page: Page) {
@@ -282,7 +291,9 @@ async function twoSetWorkout(page: Page) {
     .nth(1)
     .getByRole("button", { name: "跳过", exact: true })
     .click();
+  await openAdjustments(page);
   await page.getByLabel("杠铃卧推 第1组重量").fill("60");
+  await openAdjustments(page);
   await page.getByLabel("杠铃卧推 第2组重量").fill("60");
   await page.getByRole("button", { name: "开始记录" }).click();
   await saved(page);
@@ -329,7 +340,7 @@ test("light and dark preferences retain the same light app and form colors", asy
   await page.emulateMedia({ colorScheme: "dark" });
   expect(await colors(page, formSelectors)).toEqual(formLight);
   await expect(page.locator("html")).toHaveCSS("color-scheme", "light only");
-  await page.getByRole("button", { name: "准备好了，开始训练" }).click();
+  await setupAndReturnHome(page);
   const homeSelectors = [
     "body",
     ".shell",
@@ -834,7 +845,7 @@ test("immersive guide advances once per tap, resumes, and completes before the e
   await page.reload();
   await expect(page.locator(".immersive-guide")).toHaveCount(0);
   await expect(page.locator(".profile-form")).toBeVisible();
-  await page.getByRole("button", { name: "准备好了，开始训练" }).click();
+  await setupAndReturnHome(page);
   await expect(
     page.getByRole("button", { name: "偏好设置", exact: true }),
   ).toBeVisible();
@@ -880,7 +891,7 @@ test("home and settings preferences persist while temporary plan choices stay te
 }) => {
   await page.goto("/");
   await skipIntro(page);
-  await page.getByRole("button", { name: "准备好了，开始训练" }).click();
+  await setupAndReturnHome(page);
   const entry = page.getByRole("button", { name: "偏好设置", exact: true });
   await expect(entry).toBeVisible();
   expect((await entry.boundingBox())!.height).toBeGreaterThanOrEqual(44);
@@ -1025,8 +1036,9 @@ test("first workout hint is dismissible, appears only once and never writes trai
   await page
     .getByRole("combobox", { name: "训练经验", exact: true })
     .selectOption("刚开始");
-  await page.getByRole("button", { name: "准备好了，开始训练" }).click();
+  await setupAndReturnHome(page);
   await page.getByRole("button", { name: "开始训练", exact: true }).click();
+  await openAdjustments(page);
   await page.getByLabel("杠铃卧推 第1组重量").fill("20");
   await page.getByRole("button", { name: "开始记录" }).click();
   const hint = page.getByRole("region", { name: "如何记录一组训练？" });
@@ -1055,6 +1067,7 @@ test("next set inherits actual load and reps, keeps edits through rest/reload, a
   page,
 }) => {
   await freshChestPlan(page);
+  await openAdjustments(page);
   await page.getByLabel("杠铃卧推 第1组重量").fill("60");
   await page.getByRole("button", { name: "开始记录", exact: true }).click();
   await page.getByRole("button", { name: "完成第 1 组", exact: true }).click();

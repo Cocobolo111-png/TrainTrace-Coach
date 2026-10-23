@@ -1,0 +1,600 @@
+[
+  {
+    "id": "ACT-001",
+    "title": "悬垂举腿",
+    "type": "action",
+    "status": "reviewed",
+    "sourceFile": "悬垂举腿.md",
+    "sha256": "0cfe4d528e4b8ac230e988de39351277fabe82a0c992b7904ccc41e2eb14b0ce",
+    "sources": [
+      {
+        "video": "TS008",
+        "start": "00:00:25",
+        "end": "00:06:36"
+      }
+    ],
+    "guidance": {
+      "title": "悬垂举腿",
+      "goal": "腹部，配合骨盆与躯干控制。",
+      "cues": [
+        "先选择自己能够稳定支撑的悬垂方式。",
+        "上抬时集中控制腹部卷起与收紧。",
+        "控制下落，保留一点幅度，不一下沉到底。"
+      ],
+      "errors": [
+        "下放太多、髋部或腿前侧先吃力 → 减小下落幅度。",
+        "做不到当前难度 → 按能力选择悬垂带或支撑版本。"
+      ],
+      "tips": [
+        "原卡包含不同呼吸模式；这里不要求屏气，也不把某一种模式作为统一标准。"
+      ]
+    }
+  },
+  {
+    "id": "ACT-002",
+    "title": "卷腹",
+    "type": "action",
+    "status": "reviewed",
+    "sourceFile": "卷腹.md",
+    "sha256": "fe2ea9633197262b6256b5aedfe856a51c71dfde1346f3469e7067d3f79a5494",
+    "sources": [
+      {
+        "video": "TS008",
+        "start": "00:06:36",
+        "end": "00:11:31"
+      }
+    ]
+  },
+  {
+    "id": "ACT-003",
+    "title": "健腹轮",
+    "type": "action",
+    "status": "reviewed",
+    "sourceFile": "健腹轮.md",
+    "sha256": "56c064373b53f8c96fd3e02708e2999852f4c90659b2fba723cf31323a555f43",
+    "sources": [
+      {
+        "video": "TS008",
+        "start": "00:11:31",
+        "end": "00:16:44"
+      }
+    ]
+  },
+  {
+    "id": "ACT-004",
+    "title": "双杠臂屈伸",
+    "type": "action",
+    "status": "reviewed",
+    "sourceFile": "双杠臂屈伸.md",
+    "sha256": "c91a787ab45c8e52d7689cdd32e95f6a346dccd2d88ac7c029bbe5f92458efae",
+    "sources": [
+      {
+        "video": "TS004",
+        "start": "00:07:12",
+        "end": "00:14:39"
+      }
+    ],
+    "guidance": {
+      "title": "双杠臂屈伸（胸部侧重）",
+      "goal": "胸部，原卡侧重下胸与胸外沿。",
+      "cues": [
+        "挺胸并稍微屈髋，让重心保持微微前倾。",
+        "上下过程中保持躯干位置，不突然直起身体。",
+        "在能维持胸部收紧的幅度内完成。"
+      ],
+      "errors": [
+        "身体直起、重心改变 → 回到微前倾的位置。",
+        "过程中躯干与胸部松掉 → 减小幅度，先保持控制。"
+      ],
+      "tips": [
+        "此卡是胸部侧重的自重双杠版本，不套用到凳上或负重臂屈伸。"
+      ]
+    }
+  },
+  {
+    "id": "ACT-005",
+    "title": "坐姿器械推胸（平推）",
+    "type": "action",
+    "status": "reviewed",
+    "sourceFile": "坐姿器械推胸.md",
+    "sha256": "bc789a28f1b0f52d6ff617c946bd81e3682f560f7f5695901da824a04484e0f0",
+    "sources": [
+      {
+        "video": "TS004",
+        "start": "00:14:39",
+        "end": "00:22:12"
+      }
+    ],
+    "guidance": {
+      "title": "坐姿器械平推",
+      "goal": "胸肌，以平推时的胸部收紧为重点。",
+      "cues": [
+        "坐稳，让腰背贴住靠背，再准备推起。",
+        "推到胸部收紧即可，不必刻意把手肘锁死。",
+        "还原时保持躯干位置，不靠拱腰把重量推出。"
+      ],
+      "errors": [
+        "腰离开靠背 → 减轻重量，先保持坐姿稳定。",
+        "为了推得更远而锁死手肘 → 回到胸部能持续收紧的幅度。"
+      ],
+      "tips": [
+        "这是器械平推的指导，不直接套用到杠铃或哑铃卧推。"
+      ]
+    }
+  },
+  {
+    "id": "ACT-006",
+    "title": "上斜推胸",
+    "type": "action",
+    "status": "reviewed",
+    "sourceFile": "上斜推胸.md",
+    "sha256": "47cba0894f3525ef9c6345c7cdb1a8f2054da4414e9070bb48e6a08c727875f2",
+    "sources": [
+      {
+        "video": "TS004",
+        "start": "00:22:12",
+        "end": "00:28:32"
+      }
+    ]
+  },
+  {
+    "id": "ACT-007",
+    "title": "绳索夹上胸",
+    "type": "action",
+    "status": "reviewed",
+    "sourceFile": "绳索夹上胸.md",
+    "sha256": "7b2524337aaffe17dbe3ca8d537682d04f98d616895f209b25cb1ed43ed90da8",
+    "sources": [
+      {
+        "video": "TS004",
+        "start": "00:28:32",
+        "end": "00:33:19"
+      }
+    ]
+  },
+  {
+    "id": "ACT-008",
+    "title": "站姿提踵",
+    "type": "action",
+    "status": "reviewed",
+    "sourceFile": "站姿提踵.md",
+    "sha256": "7edcf64cbcb41cfb55d5ad569c2ea9770d3039c7fcc6a62a9d3445c12b2148e8",
+    "sources": [
+      {
+        "video": "TS005",
+        "start": "00:11:29",
+        "end": "00:17:25"
+      }
+    ]
+  },
+  {
+    "id": "ACT-009",
+    "title": "器械夹腿（内收肌）",
+    "type": "action",
+    "status": "reviewed",
+    "sourceFile": "器械夹腿内收.md",
+    "sha256": "be46eea1df7e82bfc4b014eada3303ead3feed2b1e52ac624a7cc7035eaa65d3",
+    "sources": [
+      {
+        "video": "TS005",
+        "start": "00:17:25",
+        "end": "00:24:32"
+      }
+    ]
+  },
+  {
+    "id": "ACT-010",
+    "title": "保加利亚分腿蹲",
+    "type": "action",
+    "status": "reviewed",
+    "sourceFile": "保加利亚分腿蹲.md",
+    "sha256": "fb1b1a8bb0d7ab6f1a50e82c384e40e3194e71aa0fbae18ae9577932f30ac469",
+    "sources": [
+      {
+        "video": "TS005",
+        "start": "00:24:32",
+        "end": "00:34:40"
+      }
+    ]
+  },
+  {
+    "id": "ACT-011",
+    "title": "罗马尼亚硬拉与直腿硬拉",
+    "type": "action",
+    "status": "reviewed",
+    "sourceFile": "罗马尼亚硬拉与直腿硬拉.md",
+    "sha256": "9bac8559dee9bdb90b3d4e89822049ea4060c41b4c3e7f4486f9edb99499cae4",
+    "sources": [
+      {
+        "video": "TS005",
+        "start": "00:34:40",
+        "end": "00:42:52"
+      }
+    ],
+    "guidance": {
+      "title": "罗马尼亚硬拉",
+      "goal": "大腿后侧与臀部，重点是髋部折叠的动作模式。",
+      "cues": [
+        "站距约与髋同宽，先稳住脚下。",
+        "用臀部与大腿后侧控制起落，重心不要向前跑。",
+        "下放只到后侧仍能控制的位置，不追求越低越好。"
+      ],
+      "errors": [
+        "为了下得更低而失去控制 → 缩小幅度。",
+        "起身时膝盖和重心往前冲 → 减轻重量，先找回髋部控制。"
+      ],
+      "tips": [
+        "原卡同时讨论直腿硬拉；这里仅摘取罗马尼亚版本，不把两种变式混用。"
+      ]
+    }
+  },
+  {
+    "id": "ACT-012",
+    "title": "坐姿腿屈伸",
+    "type": "action",
+    "status": "reviewed",
+    "sourceFile": "坐姿腿屈伸.md",
+    "sha256": "8684525c21ca700b5031d924cc3d2c7b588a1bbb7afa2f5a9e5b553cf47ae32a",
+    "sources": [
+      {
+        "video": "TS005",
+        "start": "00:42:52",
+        "end": "00:48:26"
+      }
+    ]
+  },
+  {
+    "id": "ACT-013",
+    "title": "俯卧腿弯举",
+    "type": "action",
+    "status": "reviewed",
+    "sourceFile": "俯卧腿弯举.md",
+    "sha256": "54e56da6b8d3047d83dcf0ce73a96e84c360c08721fe96ffc26cdad27087daca",
+    "sources": [
+      {
+        "video": "TS005",
+        "start": "00:48:26",
+        "end": "00:52:54"
+      }
+    ]
+  },
+  {
+    "id": "ACT-014",
+    "title": "俯身三角肌后束肩伸（激活）",
+    "type": "action",
+    "status": "reviewed",
+    "sourceFile": "俯身三角肌后束肩伸.md",
+    "sha256": "e8b916c5380c37387ac033fdebbbb78ab3d9ddda403cd757aeb0c8c03e840735",
+    "sources": [
+      {
+        "video": "TS006",
+        "start": "00:05:43",
+        "end": "00:14:02"
+      }
+    ]
+  },
+  {
+    "id": "ACT-015",
+    "title": "坐姿反向飞鸟",
+    "type": "action",
+    "status": "reviewed",
+    "sourceFile": "坐姿反向飞鸟.md",
+    "sha256": "b7a5295c74cf4bce0a451e21f1d549b7e4caf963d0179fcdd13eadc6dc4aee36",
+    "sources": [
+      {
+        "video": "TS006",
+        "start": "00:14:02",
+        "end": "00:21:17"
+      }
+    ],
+    "guidance": {
+      "title": "坐姿器械反向飞鸟",
+      "goal": "三角肌后束。",
+      "cues": [
+        "调座椅，让把手大致与肩齐平。",
+        "坐实，身体接近直立或微前倾，避免后仰。",
+        "向身体两侧延展打开，再控制还原。"
+      ],
+      "errors": [
+        "座椅太低、耸肩提起 → 调整高度后再做。",
+        "用后仰或向后夹背代替向外打开 → 减轻重量，保持躯干。",
+        "肘部掉下去 → 回到能控制的轨迹。"
+      ],
+      "tips": [
+        "原卡是坐姿器械版本，不直接套用到哑铃俯身飞鸟。"
+      ]
+    }
+  },
+  {
+    "id": "ACT-016",
+    "title": "坐姿哑铃推举",
+    "type": "action",
+    "status": "reviewed",
+    "sourceFile": "坐姿哑铃推举.md",
+    "sha256": "2fb6e8aaa575676cfa41e364ad42939b02ea49b22a259aeeb5c34245e7f7ab43",
+    "sources": [
+      {
+        "video": "TS006",
+        "start": "00:21:17",
+        "end": "00:31:12"
+      }
+    ],
+    "guidance": {
+      "title": "坐姿哑铃推举",
+      "goal": "三角肌，配合坐姿推举练习。",
+      "cues": [
+        "靠背调整到腰部能够贴住的位置。",
+        "下放到眼睛附近、仍能控制的位置，再向上推。",
+        "推起时保留控制，不靠身体后仰或顶腰完成。"
+      ],
+      "errors": [
+        "顶腰、后仰借力 → 回到能保持坐姿的重量。",
+        "下放过深而失控 → 减小幅度。",
+        "推到完全锁直、失去张力 → 保留一点控制空间。"
+      ],
+      "tips": [
+        "起铃与收铃时让哑铃靠近身体，借腿接送，不从地面硬提重哑铃。"
+      ]
+    }
+  },
+  {
+    "id": "ACT-017",
+    "title": "侧平举",
+    "type": "action",
+    "status": "reviewed",
+    "sourceFile": "侧平举.md",
+    "sha256": "84e6392238594171f0458ddd6e8dd418676c786f21d9e49829249c0a9a2e98b8",
+    "sources": [
+      {
+        "video": "TS006",
+        "start": "00:31:12",
+        "end": "00:34:31"
+      }
+    ],
+    "guidance": {
+      "title": "哑铃侧平举",
+      "goal": "三角肌中束。",
+      "cues": [
+        "站稳并略微前倾，避免身体向后仰。",
+        "哑铃从腿前向身体前侧一点的外上方抬起。",
+        "控制下放，接近腿部时再开始下一次。"
+      ],
+      "errors": [
+        "靠后仰或摆动甩起 → 减轻重量。",
+        "抬向身体后侧 → 回到身体前侧一点的轨迹。",
+        "为了抬高而出现不适 → 缩小幅度。"
+      ],
+      "tips": [
+        "幅度以能控制、没有不适为前提，不照搬别人的高度。"
+      ]
+    }
+  },
+  {
+    "id": "ACT-018",
+    "title": "前平举",
+    "type": "action",
+    "status": "reviewed",
+    "sourceFile": "前平举.md",
+    "sha256": "4f788e6d7d2779881fb6f5569b65ce99282ecec1681da6e96c71bd4966e05ec6",
+    "sources": [
+      {
+        "video": "TS006",
+        "start": "00:34:31",
+        "end": "00:39:45"
+      }
+    ]
+  },
+  {
+    "id": "ACT-019",
+    "title": "绳索俯身三头臂屈伸",
+    "type": "action",
+    "status": "reviewed",
+    "sourceFile": "绳索俯身三头臂屈伸.md",
+    "sha256": "47f0b696d7bc72b6dbe13816bfefa0d682963a929f493b10c0be7cc25acd1211",
+    "sources": [
+      {
+        "video": "TS007",
+        "start": "00:01:46",
+        "end": "00:09:26"
+      }
+    ]
+  },
+  {
+    "id": "ACT-020",
+    "title": "仰卧杠铃臂屈伸",
+    "type": "action",
+    "status": "reviewed",
+    "sourceFile": "仰卧杠铃臂屈伸.md",
+    "sha256": "dc0ac8b00b8e450838c64bc1b8aa36996990b7ce4229246718dcf0098ad86b21",
+    "sources": [
+      {
+        "video": "TS007",
+        "start": "00:09:26",
+        "end": "00:13:44"
+      }
+    ]
+  },
+  {
+    "id": "ACT-021",
+    "title": "坐姿绳索弯举",
+    "type": "action",
+    "status": "reviewed",
+    "sourceFile": "坐姿绳索弯举.md",
+    "sha256": "cf4d86d0b601f780d443774757d4ef96322ef4609159c3e310d538c9f5f48e3b",
+    "sources": [
+      {
+        "video": "TS007",
+        "start": "00:13:44",
+        "end": "00:21:29"
+      }
+    ]
+  },
+  {
+    "id": "ACT-022",
+    "title": "仰卧哑铃弯举",
+    "type": "action",
+    "status": "reviewed",
+    "sourceFile": "仰卧哑铃弯举.md",
+    "sha256": "0a9e668d2cd1911d97bb3340fae5c3fb0fc549d723f8cea30a5c64db58a3477c",
+    "sources": [
+      {
+        "video": "TS007",
+        "start": "00:21:29",
+        "end": "00:27:18"
+      }
+    ]
+  },
+  {
+    "id": "ACT-023",
+    "title": "单手颈后臂屈伸",
+    "type": "action",
+    "status": "reviewed",
+    "sourceFile": "单手颈后臂屈伸.md",
+    "sha256": "ec6f0c6dd198961d51f5013ddf324726c04c4dbadeb1b58471868ed552c0ec4c",
+    "sources": [
+      {
+        "video": "TS007",
+        "start": "00:27:18",
+        "end": "00:32:40"
+      }
+    ]
+  },
+  {
+    "id": "ACT-024",
+    "title": "绳索锤式弯举（肱肌）",
+    "type": "action",
+    "status": "reviewed",
+    "sourceFile": "绳索锤式弯举.md",
+    "sha256": "00cc935f9cb54b68d92c587bf778cd1231a76622235b82944aab2b78ba03579b",
+    "sources": [
+      {
+        "video": "TS007",
+        "start": "00:32:40",
+        "end": "00:38:43"
+      }
+    ]
+  },
+  {
+    "id": "ACT-BACK-001",
+    "title": "直臂下压",
+    "type": "action",
+    "status": "reviewed",
+    "sourceFile": "背部/直臂下压.md",
+    "sha256": "9ee495fcfbe5aa6f73627e06c367443e3f5c222d90a77d5fe1134602e617cd61",
+    "sources": [
+      {
+        "video": "TS003",
+        "start": "00:08:12",
+        "end": "00:11:35"
+      }
+    ]
+  },
+  {
+    "id": "ACT-BACK-002",
+    "title": "单臂绳索划船",
+    "type": "action",
+    "status": "reviewed",
+    "sourceFile": "背部/单臂绳索划船.md",
+    "sha256": "dd4687fbfa91cba25bf440acce5e29525cb09f2b73d88592cdcb0ab3cbd31a3a",
+    "sources": [
+      {
+        "video": "TS003",
+        "start": "00:11:27",
+        "end": "00:18:40"
+      }
+    ]
+  },
+  {
+    "id": "ACT-BACK-003",
+    "title": "高位下拉",
+    "type": "action",
+    "status": "reviewed",
+    "sourceFile": "背部/高位下拉.md",
+    "sha256": "040dfb6374c8de026ec756a4abe66bd21ab0e424b95fb5640bcabc4ae9bdafdf",
+    "sources": [
+      {
+        "video": "TS003",
+        "start": "00:18:40",
+        "end": "00:29:06"
+      }
+    ],
+    "guidance": {
+      "title": "对握绳索高位下拉",
+      "goal": "背阔肌，原卡示范对握、略带外旋的绳索下拉。",
+      "cues": [
+        "用对握把手，身体保持中立或微微前倾。",
+        "让肘部向身体内侧收，稳定地向下拉。",
+        "控制还原，保持座位与躯干稳定。"
+      ],
+      "errors": [
+        "后仰过多，拉成划船 → 减轻重量、稳住躯干。",
+        "重量把臀部带离座位 → 先固定下端。",
+        "只追求拉得低而肩胛失控 → 缩小幅度。"
+      ],
+      "tips": [
+        "以下仅为对握绳索示例；宽握、反握等版本不直接套用。"
+      ]
+    }
+  },
+  {
+    "id": "ACT-BACK-004",
+    "title": "坐姿绳索划船",
+    "type": "action",
+    "status": "reviewed",
+    "sourceFile": "背部/坐姿绳索划船.md",
+    "sha256": "7d38e146cd050a602622b0aed6f73e5b64b729e8f9d2fe6093fc48bf60dae2ea",
+    "sources": [
+      {
+        "video": "TS003",
+        "start": "00:29:00",
+        "end": "00:35:00"
+      }
+    ],
+    "guidance": {
+      "title": "坐姿绳索划船",
+      "goal": "背阔肌，原卡为双手绳索划船。",
+      "cues": [
+        "脚蹬稳，让骨盆与躯干保持稳定。",
+        "保持肩胛位置可控，向肚脐方向拉。",
+        "控制还原，不靠身体后仰完成。"
+      ],
+      "errors": [
+        "脚没蹬稳、身体晃动 → 先稳定下端。",
+        "向上拉或用后仰借力 → 减轻重量，回到目标方向。"
+      ],
+      "tips": [
+        "只在记录明确为绳索版本时匹配；普通器械或宽距划船不自动关联。"
+      ]
+    }
+  },
+  {
+    "id": "ACT-BACK-005",
+    "title": "单手全肩屈绳索下压",
+    "type": "action",
+    "status": "reviewed",
+    "sourceFile": "背部/单手全肩屈绳索下压.md",
+    "sha256": "4209923466510a065587207e97a2acb4a4fcf7178d9a450defa2eee2d8f1e58c",
+    "sources": [
+      {
+        "video": "TS003",
+        "start": "00:35:00",
+        "end": "00:42:39"
+      }
+    ]
+  },
+  {
+    "id": "ACT-BACK-006",
+    "title": "俯卧肩胛后缩",
+    "type": "action",
+    "status": "reviewed",
+    "sourceFile": "背部/俯卧肩胛后缩.md",
+    "sha256": "2b6d4f45aeb6c512272b90c314aaddb93869d6d5e2f8d9aaa6de45d7fc62bd88",
+    "sources": [
+      {
+        "video": "TS003",
+        "start": "00:42:39",
+        "end": "00:47:47"
+      }
+    ]
+  }
+]

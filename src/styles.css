@@ -2388,3 +2388,17 @@ details.settings-copy {
   font-size: 11px;
   color: var(--forest);
 }
+
+/* V1.4: progressive detail inside the existing training surfaces. */
+.action-guidance, .plan-adjustments { margin: 12px 0; }
+.action-guidance > summary, .plan-adjustments > summary {
+  display: flex; align-items: center; justify-content: space-between;
+  min-height: 44px; gap: 12px; font-weight: 600;
+}
+.action-guidance > div { max-width: 68ch; padding: 8px 0 12px; }
+.action-guidance h3 { font-size: 17px; margin: 4px 0 20px; }
+.action-guidance h4 { font-size: 14px; margin: 20px 0 8px; }
+.action-guidance p, .action-guidance li { font-size: 14px; line-height: 1.7; }
+.action-guidance ul { padding-left: 20px; margin: 0; }
+.action-guidance li + li { margin-top: 6px; }
+.action-guidance .helper { margin-top: 20px; overflow-wrap: anywhere; }
