@@ -1,3 +1,11 @@
+import {
+  byokEnabled,
+  defaultDimensions,
+  dimensions,
+  dimensionLabels,
+  type Dimension,
+} from "./aiConfig";
+import { useAIConnection } from "./aiConnection";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { ArrowUpRight, ChevronDown } from "lucide-react";
 import { type Profile, type Session } from "./model";
@@ -20,14 +28,21 @@ export function FeedbackCard({
   sessions: Session[];
   profile: Profile | null;
 }) {
-  const localAI = localAnalysisEnabled();
+  const connection = useAIConnection();
+  const localAI = localAnalysisEnabled() || (byokEnabled() && !!connection);
+  const [selected, setSelected] = useState<Dimension[]>(defaultDimensions);
   const result = useMemo(
     () => evaluateTraining(session, sessions, profile),
     [session, sessions, profile],
   );
   const input = useMemo(
-    () => analysisInput(session, sessions, profile),
-    [session, sessions, profile],
+    () =>
+      analysisInput(session, sessions, profile, {
+        provider: "deepseek",
+        model: connection?.model ?? "deepseek-flash",
+        dimensions: selected,
+      }),
+    [session, sessions, profile, connection?.model, selected],
   );
   const signature = analysisSignature(input);
   const [analysis, setAnalysis] = useState<Analysis | null>(null),
@@ -48,7 +63,7 @@ export function FeedbackCard({
     return () => {
       generation.current++;
     };
-  }, [signature, localAI]); // Facts, preferences, rule version and build mode.
+  }, [signature, localAI, connection?.generation]); // Facts, preferences, rule version and build mode.
   async function expand() {
     if (open && analysis) {
       setOpen(false);
@@ -108,11 +123,28 @@ export function FeedbackCard({
       </details>
       {localAI && (
         <>
+          <fieldset className="ai-dimensions" disabled={loading}>
+            <legend>AI 分析重点</legend>
+            {dimensions.map((d) => (
+              <label key={d}>
+                <input
+                  type="checkbox"
+                  checked={selected.includes(d)}
+                  onChange={() =>
+                    setSelected((xs) =>
+                      xs.includes(d) ? xs.filter((x) => x !== d) : [...xs, d],
+                    )
+                  }
+                />
+                {dimensionLabels[d]}
+              </label>
+            ))}
+          </fieldset>
           <button
             className="feedback-ai-button"
             type="button"
             onClick={() => void expand()}
-            disabled={loading}
+            disabled={loading || !selected.length}
             aria-expanded={open}
             aria-controls="detailed-training-analysis"
           >

@@ -7,6 +7,8 @@ export default defineConfig({
     rollupOptions: {
       input: {
         index: "server/index.ts",
+        http: "server/http.ts",
+        "verify-byok": "server/verify-byok.ts",
         verify: "server/verify.ts",
         convert: "scripts/convert-training-log.ts",
       },

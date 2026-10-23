@@ -17,11 +17,17 @@ async function skipIntro(page: Page) {
 }
 async function setupAndReturnHome(page: Page) {
   await page.getByRole("button", { name: "准备好了，开始训练" }).click();
-  await expect(page.getByRole("button", { name: "开始记录", exact: true })).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "开始记录", exact: true }),
+  ).toBeVisible();
   await page.getByRole("button", { name: "返回", exact: true }).click();
 }
 async function openAdjustments(page: Page) {
-  for (const summary of await page.locator(".plan-adjustments:not([open]) > summary").all()) await summary.click();
+  while (await page.locator(".plan-adjustments:not([open]) > summary").count())
+    await page
+      .locator(".plan-adjustments:not([open]) > summary")
+      .first()
+      .click();
 }
 async function saved(page: Page) {
   await expect(

@@ -11,3 +11,5 @@ test-results/
 
 dist-server/
 dist-local/
+
+dist-byok/

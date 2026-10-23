@@ -313,7 +313,7 @@ export function changeRestDuration(
 }
 
 // Derived AI output shares one contract; it is never part of State or a training fact.
-export const ANALYSIS_VERSION = "deepseek-json-v3.2-explainer-v1";
+export const ANALYSIS_VERSION = "deepseek-json-v4-dimensions-explainer-v1";
 const analysisText = z.string().trim().min(1).max(600);
 export const AnalysisContentSchema = z
   .object({

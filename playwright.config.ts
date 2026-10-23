@@ -17,7 +17,19 @@ export default defineConfig({
     },
   },
   projects: [
-    { name: "local", testMatch: ["**/feedback.spec.ts", "**/journey.spec.ts", "**/v14.spec.ts"] },
+    {
+      name: "byok",
+      testMatch: ["**/byok.spec.ts"],
+      use: { baseURL: "https://127.0.0.1:14175", ignoreHTTPSErrors: true },
+    },
+    {
+      name: "local",
+      testMatch: [
+        "**/feedback.spec.ts",
+        "**/journey.spec.ts",
+        "**/v14.spec.ts",
+      ],
+    },
     {
       name: "public",
       testMatch: ["**/public.spec.ts", "**/journey.spec.ts", "**/v14.spec.ts"],
@@ -25,6 +37,12 @@ export default defineConfig({
     },
   ],
   webServer: [
+    {
+      command: "node tests/byok-preview.mjs",
+      url: "https://127.0.0.1:14175",
+      ignoreHTTPSErrors: true,
+      reuseExistingServer: false,
+    },
     {
       command:
         "node node_modules/vite/bin/vite.js preview --outDir dist-local --host 127.0.0.1 --port 14173 --strictPort",

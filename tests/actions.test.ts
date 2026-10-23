@@ -3,14 +3,23 @@ import { actionGuidance } from "../src/actionGuidance";
 import { catalog, makeExercise } from "../src/coach";
 import cards from "../src/actionCards.json";
 describe("reviewed Action guidance", () => {
-  const movement = (id: string) => makeExercise(catalog.find((m) => m.id === id)!, [], 3);
+  const movement = (id: string) =>
+    makeExercise(
+      catalog.find((m) => m.id === id)!,
+      [],
+      3,
+    );
   it("parses the actual 30 reviewed Action records with traceable sources", () => {
     expect(cards).toHaveLength(30);
     expect(new Set(cards.map((c) => c.id)).size).toBe(30);
     for (const c of cards) {
-      expect(c.type).toBe("action"); expect(c.status).toBe("reviewed");
+      expect(c.type).toBe("action");
+      expect(c.status).toBe("reviewed");
       expect(c.sha256).toMatch(/^[a-f0-9]{64}$/);
-      expect(c.sources[0]).toMatchObject({ video: expect.stringMatching(/^TS\d{3}$/), start: expect.stringMatching(/^\d{2}:\d{2}:\d{2}$/) });
+      expect(c.sources[0]).toMatchObject({
+        video: expect.stringMatching(/^TS\d{3}$/),
+        start: expect.stringMatching(/^\d{2}:\d{2}:\d{2}$/),
+      });
       if (c.guidance) expect(c.guidance.errors.length).toBeLessThanOrEqual(3);
     }
   });
@@ -29,9 +38,13 @@ describe("reviewed Action guidance", () => {
     expect(actionGuidance({ ...lateral, equipment: "固定器械" })).toBeNull();
     expect(actionGuidance({ ...lateral, variant: "绳索" })).toBeNull();
     expect(actionGuidance({ ...lateral, name: "相似名称" })).toBeNull();
-    expect(actionGuidance({ ...movement("pulldown"), variant: "宽握" })).toBeNull();
+    expect(
+      actionGuidance({ ...movement("pulldown"), variant: "宽握" }),
+    ).toBeNull();
     expect(actionGuidance(movement("row"))).toBeNull();
-    expect(actionGuidance({ ...movement("row"), variant: "绳索" })?.id).toBe("ACT-BACK-004");
+    expect(actionGuidance({ ...movement("row"), variant: "绳索" })?.id).toBe(
+      "ACT-BACK-004",
+    );
   });
   it("has nine default catalog mappings without changing exercises", () => {
     const exercises = catalog.map((m) => makeExercise(m, [], 3));

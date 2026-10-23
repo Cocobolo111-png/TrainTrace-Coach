@@ -71,6 +71,8 @@ import {
 } from "./storage";
 import { parseImport, type ImportPreview } from "./importer";
 import { FeedbackCard } from "./FeedbackCard";
+import { AISettings } from "./AISettings";
+import { byokEnabled } from "./aiConfig";
 import { ActionGuidance } from "./actionGuidance";
 import { unlockRestAudio, playRestCue } from "./restCues";
 import { movementIdentity, sameMovement } from "./feedback";
@@ -421,10 +423,20 @@ export function App() {
                 if (ok) {
                   void navigator.storage?.persist?.();
                   const t = recommend(state.sessions).theme;
-                  const r = (recommendation.gap ?? 0) >= 14 || p.preference === "保守";
+                  const r =
+                    (recommendation.gap ?? 0) >= 14 || p.preference === "保守";
                   setTheme(t);
                   setRecovery(r);
-                  setDraft(makePlan(p, state.sessions, t, minutes, r, readGuidance().defaultRest));
+                  setDraft(
+                    makePlan(
+                      p,
+                      state.sessions,
+                      t,
+                      minutes,
+                      r,
+                      readGuidance().defaultRest,
+                    ),
+                  );
                   setPage("plan");
                   window.scrollTo(0, 0);
                 }
@@ -786,6 +798,7 @@ export function App() {
               }}
             />
             <ReminderPreferences />
+            <AISettings />
             <details className="settings-data">
               <summary>
                 数据管理
@@ -804,14 +817,16 @@ export function App() {
                 关于与隐私
                 <ChevronDown size={16} />
               </summary>
-              <p>TrainTrace V1.3 · 发布候选版</p>
+              <p>TrainTrace V1.4 Beta · 验收候选版</p>
               <p>
                 记录仅保存在当前浏览器的本站点中，不会同步到其他设备。清理浏览器数据或更换设备前，请先在「数据管理」中导出备份。
               </p>
               <p>
-                {localAnalysisEnabled()
-                  ? "仅在你点击详细 AI 分析时，必要的训练记录和偏好才会发送至 DeepSeek 官方服务。"
-                  : "网页版使用本地规则反馈，不提供在线 AI 分析，也不会上传训练记录。"}
+                {byokEnabled()
+                  ? "AI 仅在连接个人密钥并主动请求时发送必要训练记录。密钥经本站服务器转发，刷新或断开后清除。"
+                  : localAnalysisEnabled()
+                    ? "仅在你点击详细 AI 分析时，必要的训练记录和偏好才会发送至 DeepSeek 官方服务。"
+                    : "网页版使用本地规则反馈，不提供在线 AI 分析，也不会上传训练记录。"}
               </p>
               <h3>添加到主屏幕</h3>
               <p>
@@ -1447,7 +1462,8 @@ function PlanExercise({
         <div>
           <h2>{e.name}</h2>
           <p>
-            {e.basis} · {e.sets.length} 组 × {[...new Set(e.sets.map((s) => s.reps))].join(" / ")} 次 ·{" "}
+            {e.basis} · {e.sets.length} 组 ×{" "}
+            {[...new Set(e.sets.map((s) => s.reps))].join(" / ")} 次 ·{" "}
             <button
               className="rest-inline"
               type="button"
@@ -1495,78 +1511,84 @@ function PlanExercise({
           </div>
           <ActionGuidance exercise={e} />
           <details className="plan-adjustments">
-            <summary>调整重量与组次<ChevronDown size={16} /></summary>
-          <div className="plan-set-head">
-            <span>工作组</span>
-            <span>重量 kg</span>
-            <span>次数</span>
-          </div>
-          {e.sets.map((s, i) => (
-            <div className="plan-set" key={s.id}>
-              <span>{i + 1}</span>
-              <input
-                aria-label={`${e.name} 第${i + 1}组重量`}
-                type="number"
-                inputMode="decimal"
-                min="0"
-                max="1000"
-                step="0.5"
-                placeholder="选重"
-                value={s.weight ?? ""}
-                disabled={busy || !!s.actual || e.basis === "自重"}
-                onChange={(event) => {
-                  const n =
-                    event.target.value === "" ? null : +event.target.value;
-                  if (n === null || (Number.isFinite(n) && n >= 0 && n <= 1000))
-                    onChange({
-                      ...e,
-                      sets: e.sets.map((t) =>
-                        t.id === s.id
-                          ? { ...t, weight: n, draftEdited: true }
-                          : t,
-                      ),
-                    });
-                }}
-              />
-              <input
-                aria-label={`${e.name} 第${i + 1}组次数`}
-                type="number"
-                inputMode="numeric"
-                min="1"
-                max="200"
-                value={s.reps}
-                disabled={busy || !!s.actual}
-                onChange={(event) => {
-                  const n = +event.target.value;
-                  if (Number.isInteger(n) && n >= 1 && n <= 200)
-                    onChange({
-                      ...e,
-                      sets: e.sets.map((t) =>
-                        t.id === s.id
-                          ? { ...t, reps: n, draftEdited: true }
-                          : t,
-                      ),
-                    });
-                }}
-              />
+            <summary>
+              调整重量与组次
+              <ChevronDown size={16} />
+            </summary>
+            <div className="plan-set-head">
+              <span>工作组</span>
+              <span>重量 kg</span>
+              <span>次数</span>
             </div>
-          ))}
-          <div className="exercise-actions">
-            <button
-              disabled={busy || e.sets.length <= 1 || !!e.sets.at(-1)?.actual}
-              onClick={() => onChange({ ...e, sets: e.sets.slice(0, -1) })}
-            >
-              <Minus size={16} />
-              减少组数
-            </button>
-            <button
-              disabled={busy || completed(e).length > 0}
-              onClick={() => setReplace(!replace)}
-            >
-              <RefreshCw size={15} />
-              替换动作
-            </button>
-          </div>
+            {e.sets.map((s, i) => (
+              <div className="plan-set" key={s.id}>
+                <span>{i + 1}</span>
+                <input
+                  aria-label={`${e.name} 第${i + 1}组重量`}
+                  type="number"
+                  inputMode="decimal"
+                  min="0"
+                  max="1000"
+                  step="0.5"
+                  placeholder="选重"
+                  value={s.weight ?? ""}
+                  disabled={busy || !!s.actual || e.basis === "自重"}
+                  onChange={(event) => {
+                    const n =
+                      event.target.value === "" ? null : +event.target.value;
+                    if (
+                      n === null ||
+                      (Number.isFinite(n) && n >= 0 && n <= 1000)
+                    )
+                      onChange({
+                        ...e,
+                        sets: e.sets.map((t) =>
+                          t.id === s.id
+                            ? { ...t, weight: n, draftEdited: true }
+                            : t,
+                        ),
+                      });
+                  }}
+                />
+                <input
+                  aria-label={`${e.name} 第${i + 1}组次数`}
+                  type="number"
+                  inputMode="numeric"
+                  min="1"
+                  max="200"
+                  value={s.reps}
+                  disabled={busy || !!s.actual}
+                  onChange={(event) => {
+                    const n = +event.target.value;
+                    if (Number.isInteger(n) && n >= 1 && n <= 200)
+                      onChange({
+                        ...e,
+                        sets: e.sets.map((t) =>
+                          t.id === s.id
+                            ? { ...t, reps: n, draftEdited: true }
+                            : t,
+                        ),
+                      });
+                  }}
+                />
+              </div>
+            ))}
+            <div className="exercise-actions">
+              <button
+                disabled={busy || e.sets.length <= 1 || !!e.sets.at(-1)?.actual}
+                onClick={() => onChange({ ...e, sets: e.sets.slice(0, -1) })}
+              >
+                <Minus size={16} />
+                减少组数
+              </button>
+              <button
+                disabled={busy || completed(e).length > 0}
+                onClick={() => setReplace(!replace)}
+              >
+                <RefreshCw size={15} />
+                替换动作
+              </button>
+            </div>
           </details>
           {replace && (
             <div className="replacement">
