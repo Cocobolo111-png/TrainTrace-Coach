@@ -111,7 +111,9 @@ try {
     },
   ];
   const results = [];
-  for (const c of cases) {
+  for (const c of cases.filter(
+    (item) => !process.argv[3] || item.name === process.argv[3],
+  )) {
     const input = analysisInput(c.current, c.history, profile, {
       provider: "deepseek",
       model: c.model,

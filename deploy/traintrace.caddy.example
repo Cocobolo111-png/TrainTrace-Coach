@@ -1,0 +1,20 @@
+# Candidate only: do not enable this site before human acceptance and DNS review.
+train.byheyang.cn {
+    @api path /api/*
+    handle @api {
+        request_body {
+            max_size 256KB
+        }
+        reverse_proxy 127.0.0.1:8788 {
+            header_up Host {host}
+            header_up X-Forwarded-Proto https
+            transport http {
+                response_header_timeout 45s
+            }
+        }
+    }
+    handle {
+        reverse_proxy 127.0.0.1:8788
+    }
+    # No request/access/body/header logging here. Never add credential logging.
+}

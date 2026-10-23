@@ -108,7 +108,7 @@ async function service(fetcher = provider()) {
       req.end(JSON.stringify(data));
     });
   };
-  return { request, fetcher };
+  return { request, fetcher, url };
 }
 describe("BYOK boundary", () => {
   it("requires an exact HTTPS deployment origin", () => {
@@ -196,6 +196,37 @@ describe("BYOK boundary", () => {
     release();
     expect((await first).status).toBe(200);
     expect((await second).status).toBe(200);
+  });
+  it("cancels provider transport when the requesting browser disconnects", async () => {
+    let signal: AbortSignal | undefined;
+    const fake = vi.fn<typeof fetch>(async (_url, init) => {
+      signal = init?.signal ?? undefined;
+      return new Promise<Response>((_resolve, reject) =>
+        signal!.addEventListener(
+          "abort",
+          () => reject(new Error("cancelled")),
+          { once: true },
+        ),
+      );
+    });
+    const { url } = await service(fake);
+    const request = httpRequest(url + "/api/ai/connect", {
+      method: "POST",
+      headers: {
+        host: "train.example",
+        origin: "https://train.example",
+        "x-forwarded-proto": "https",
+        "Content-Type": "application/json",
+        authorization: "Bearer synthetic-key",
+      },
+    });
+    request.on("error", () => {});
+    request.end(
+      JSON.stringify({ provider: "deepseek", model: "deepseek-flash" }),
+    );
+    await vi.waitFor(() => expect(fake).toHaveBeenCalledOnce());
+    request.destroy();
+    await vi.waitFor(() => expect(signal?.aborted).toBe(true));
   });
   it("reuses one model call, sends selected dimensions, and retains rule nextAction", async () => {
     const { request, fetcher } = await service();

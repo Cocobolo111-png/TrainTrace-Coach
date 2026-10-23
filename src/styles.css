@@ -2466,3 +2466,11 @@ details.settings-copy {
   margin-right: 14px;
   font-size: 14px;
 }
+
+.ai-settings input,
+.ai-settings select {
+  background: var(--paper);
+  border: 1px solid var(--line);
+  border-radius: 3px;
+  padding: 10px 12px;
+}

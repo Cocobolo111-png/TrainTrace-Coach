@@ -125,6 +125,11 @@ export function createTrainTraceServer(config: ServerConfig) {
           );
         if (running >= 2) throw fail(429, "rate_limit");
         running++;
+        const cancellation = new AbortController();
+        const onClose = () => {
+          if (!res.writableFinished) cancellation.abort();
+        };
+        res.once("close", onClose);
         try {
           const raw = await body(req);
           let options;
@@ -157,7 +162,10 @@ export function createTrainTraceServer(config: ServerConfig) {
               response = await fetcher("https://api.deepseek.com/models", {
                 headers: { Authorization: `Bearer ${key}` },
                 redirect: "error",
-                signal: AbortSignal.timeout(12000),
+                signal: AbortSignal.any([
+                  cancellation.signal,
+                  AbortSignal.timeout(12000),
+                ]),
               });
             } catch {
               throw fail(502, "provider_unavailable");
@@ -193,11 +201,16 @@ export function createTrainTraceServer(config: ServerConfig) {
             200,
             await generateAnalysis(
               raw,
-              { key, model: options?.model ?? config.local?.model },
+              {
+                key,
+                model: options?.model ?? config.local?.model,
+                signal: cancellation.signal,
+              },
               fetcher,
             ),
           );
         } finally {
+          res.off("close", onClose);
           running--;
         }
       }

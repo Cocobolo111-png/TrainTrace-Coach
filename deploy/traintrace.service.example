@@ -1,0 +1,28 @@
+[Unit]
+Description=TrainTrace V1.4 BYOK candidate
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=traintrace
+Group=traintrace
+WorkingDirectory=/srv/www/sites/traintrace/current
+Environment=NODE_ENV=production
+Environment=PUBLIC_ORIGIN=https://train.byheyang.cn
+Environment=PORT=8788
+Environment=TRAINTRACE_DIST=dist-byok
+# No EnvironmentFile or developer provider credential in public BYOK mode.
+ExecStart=/usr/local/bin/node dist-server/index.js --byok
+Restart=on-failure
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadOnlyPaths=/srv/www/sites/traintrace
+UMask=0077
+MemoryMax=256M
+TasksMax=64
+
+[Install]
+WantedBy=multi-user.target
