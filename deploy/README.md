@@ -1,6 +1,6 @@
-# V1.4 Beta 部署候选方案
+# V1.4 Beta 部署与回滚
 
-尚未部署、尚未切换 DNS/流量。现有 GitHub Pages V1.3 保持运行。
+已获用户上线批准，2026-10-23 已部署完整 BYOK 版：https://train.byheyang.cn/ 。应用 Commit 为 `88295cece12ae93060975ea4b0e5147f85af43b6`。GitHub Pages 同时发布 V1.4 静态版。以下保留部署方案，批准关口已完成；实际验证状态见 [上线记录](../docs/v1.4-launch.md)。
 
 2026-10-23 只读 SSH 复核：现有阿里云 Ubuntu 上 Caddy 与 Love Journal 服务均 active；Node v24.21.0；Caddyfile 使用 `/etc/caddy/sites-enabled/*.caddy`；已有 love-journal 与 portfolio 站点；127.0.0.1:3101、2019 已占用，8788 未占用。不安装新代理，不替换现有 Caddyfile，不操作现有数据。
 
@@ -28,3 +28,29 @@
 - 分析超时 35 秒、连接测试 12 秒、请求体最多 256000 字节。无自动模型重试，失败保留规则反馈。
 - PWA 只预缓存版本化资源，不缓存 API。更新完成后提示，训练中不强制刷新。不同协议/主机/端口的 IndexedDB 独立；GitHub Pages → 新域名须用户主动导出/导入，不自动迁移。
 - 真实手机 Safari/Android 安装、正式证书与公网网络、实际缓存跨版本更新仍需人工验收。不要用本地测试证书部署公网。
+
+## 当前服务与回滚命令
+
+- 服务：`traintrace.service`，专用无登录用户 `traintrace`，开机启动，仅监听 `127.0.0.1:8788`；无开发者凭证、无 EnvironmentFile。
+- 版本目录：`/srv/www/sites/traintrace/releases/88295cece12a/`；`current` 原子链接指向该目录，内有构建 SHA256 清单及 `dist-byok/release.json`。
+- 独立 Caddy 配置：`/etc/caddy/sites-available/traintrace.caddy`，由 sites-enabled 同名链接启用。复用现有证书存储和自动续期，不替换其他站点配置。
+- 已安装 [发布/回滚脚本](traintrace-release.sh) 为 `/usr/local/sbin/traintrace-release`，只有 root 可执行发布操作。
+
+```sh
+sudo /usr/local/sbin/traintrace-release rollback
+```
+
+这是该域名首次服务端发布，**没有旧的服务器 TrainTrace 版本或 previous 链接**。首次回滚会撤下独立 Caddy 站点、校验并平滑 reload Caddy，然后停止并禁用 TrainTrace 服务；保留 DNS、版本目录及其他站点，GitHub Pages 静态版继续可用。首次撤回与恢复已实际演练。
+
+未来激活不同 release 后，脚本会保存 `/srv/www/sites/traintrace/previous`，`rollback` 即切回上一 release 并重启 TrainTrace。若激活健康检查失败，会恢复可用的旧链接。代码历史中的上一版本保留于 Git Commit `28e06f6`，并非伪造的服务端 previous。
+
+首次撤回后恢复本次发布：
+
+```sh
+sudo /usr/local/sbin/traintrace-release activate 88295cece12a
+sudo ln -s /etc/caddy/sites-available/traintrace.caddy /etc/caddy/sites-enabled/traintrace.caddy
+sudo -u caddy caddy validate --config /etc/caddy/Caddyfile
+sudo systemctl reload caddy
+```
+
+只在同名 sites-enabled 链接确实不存在时重建，先校验再 reload。发布脚本不修改浏览器 IndexedDB，也不迁移或上传训练数据。

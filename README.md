@@ -6,11 +6,11 @@
 
 一款面向日常力量训练的**智能训练记录工具**。连接训练记录、历史对比和专业反馈，让你知道今天练了什么，也知道下一次可以如何调整。
 
-**[在线体验 →](https://cocobolo111-png.github.io/TrainTrace-Coach/)** · 无需注册 · 本地保存 · 支持离线记录
+**[正式体验 →](https://train.byheyang.cn/)** · [GitHub Pages 静态版](https://cocobolo111-png.github.io/TrainTrace-Coach/) · 无需注册 · 本地保存 · 支持离线记录
 
 ![TrainTrace 产品概览：逐组记录、查看历史趋势、获得有依据的下一步建议。界面使用合成测试数据。](docs/images/product-overview.webp)
 
-当前分支：**1.4.0-beta.1 · 人工验收候选版**，未覆盖线上 V1.3，未创建稳定标签。上方体验链接仍指向已发布版本。V1.4 新增审核动作指导、设置后直接进入候选计划，以及可选个人 DeepSeek 接入。
+当前版本：**1.4.0-beta.1 · Beta**。完整 BYOK 版已部署至正式域名，GitHub Pages 继续提供无公共 AI 服务的静态版。V1.4 新增审核动作指导、设置后直接进入候选计划，以及可选个人 DeepSeek 接入；尚未创建稳定标签。
 
 ## Why TrainTrace · 记录之后，还差一步
 
@@ -70,7 +70,7 @@ TrainTrace 希望缩短从**记录训练到理解训练**之间的距离：训�
 
 ## Try It Yourself · 开始一节训练
 
-**[打开 TrainTrace](https://cocobolo111-png.github.io/TrainTrace-Coach/)**
+**[打开 TrainTrace](https://train.byheyang.cn/)**
 
 无需注册，完成首次引导和训练偏好设置，即可选择、调整候选计划并开始记录。结束后查看反馈，在「记录」中回看历史，在「设置 → 数据管理」导出备份。
 
@@ -152,7 +152,7 @@ pnpm build:server
 PUBLIC_ORIGIN=https://train.byheyang.cn pnpm start:byok
 ```
 
-以上命令启动回环服务，需复用现有 Caddy 提供同源 HTTPS；域名尚未启用，不代表运行命令后已部署。见 [部署方案与人工关口](deploy/README.md)。GitHub Pages 静态版不支持 BYOK，不做浏览器直连绕过。
+以上命令启动回环服务，生产环境由现有 Caddy 提供同源 HTTPS。正式站点的设置中可展开「连接你自己的 AI」配置个人凭证。见 [部署与回滚说明](deploy/README.md) 和 [上线验收记录](docs/v1.4-launch.md)。GitHub Pages 静态版不支持 BYOK，不做浏览器直连绕过。
 
 Key 会经过本站服务器，但只保留在当前页面内存，刷新、断开即清除；不写入本地存储、备份或服务端日志。公共模式不读取私人环境 Key 兜底。缓存按事实、规则/解释版本、服务商、请求/实际模型与维度校验，缓存升级不改变训练 State。已有 `.env.local` 私人模式继续使用 `pnpm start`，只在本机运行。
 
